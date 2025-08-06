@@ -6,12 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const startScraperBtn = document.getElementById('startScraperBtn');
   const wipeDbBtn = document.getElementById('wipeDbBtn');
   const selectFileBtn = document.getElementById('selectFileBtn');
-  const downloadExcelBtn = document.getElementById('downloadExcelBtn');
-  const openDbBtn = document.getElementById('openDbBtn');
   const downloadCsvBtn = document.getElementById('downloadCsvBtn');
   const scrapeNodesBtn = document.getElementById('scrapeNodesBtn');
-  const showTableBtn = document.getElementById('showTableBtn'); // New button
-  const buttonContainer = document.querySelector('.button-container');
+  const openDbBtn = document.getElementById('openDbBtn');
   
   // State variables
   let debounceTimer;
@@ -184,31 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ======================
-  // Table Data Display
-  // ======================
-  async function fetchAndDisplayTableData() {
-    const loadingModal = createModal(
-      'Loading Table Data',
-      '<div class="loader"></div>'
-    );
-    
-    try {
-      const result = await window.electronAPI.getTableData();
-      document.body.removeChild(loadingModal);
-      
-      if (result.success) {
-        displayTableData(result.data);
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      document.body.removeChild(loadingModal);
-      console.error('Error fetching table data:', error);
-      showNotification(`Error: ${error.message}`, true);
-    }
-  }
-
   function displayTableData(data) {
     createModal(
       'Database Table Data',
@@ -352,8 +324,6 @@ scrapeNodesBtn.addEventListener('click', async () => {
   }
 });
 
-  // New table data button handler
-  showTableBtn.addEventListener('click', fetchAndDisplayTableData);
 
   // ======================
   // Progress Updates

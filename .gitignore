@@ -3,5 +3,7 @@ JD/backup.js
 # Ignore Node.js dependencies and build
 node_modules/
 dist/
+JD/package-lock.json
+data/
 # CSV temp results file
 output/
