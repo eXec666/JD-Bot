@@ -1,130 +1,183 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Scraper GUI</title>
+  <meta charset="UTF-8" />
+  <title>G&G БОТ</title>
   <style>
-    
-    body { font-family: sans-serif; padding: 20px; }
-    button { margin: 5px; padding: 10px 20px; }
-    #progressBar { width: 100%; background: #eee; height: 20px; border-radius: 5px; overflow: hidden; margin: 10px 0; }
-    #progressBar div { height: 100%; background: #4caf50; width: 0; transition: 0.3s; }
-    .input-group { margin: 10px 0; }
-    input { padding: 8px; width: 200px; }
-    .search-container {
-      position: relative;
-      margin: 20px 0;
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background-color: #f4f4f7;
+      margin: 0;
+      padding: 30px;
+      color: #333;
     }
-    #searchResults {
-      position: absolute;
-      width: 100%;
-      max-height: 300px;
-      overflow-y: auto;
+
+    h1 {
+      text-align: center;
+      color: #222;
+      margin-bottom: 30px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
       background: white;
-      border: 1px solid #ddd;
-      z-index: 100;
-      display: none;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     }
-    .search-item {
-      padding: 8px 12px;
-      cursor: pointer;
-      border-bottom: 1px solid #eee;
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
     }
-    .search-item:hover {
-      background-color: #f5f5f5;
-    }
-    #partNumberInput {
-      width: 300px;
-      padding: 10px;
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
       font-size: 16px;
     }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    #progressBar {
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    #progressBar div {
+      height: 100%;
+      width: 0;
+      background-color: #28a745;
+      text-align: center;
+      color: white;
+      font-weight: bold;
+      transition: width 0.4s ease;
+    }
+
+    .file-control {
+      margin-bottom: 10px;
+    }
+
+    #filePathDisplay {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+      color: #555;
+    }
+
     .modal-backdrop {
       position: fixed;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      right: 0;
+      bottom: 0;
       background-color: rgba(0,0,0,0.5);
       display: flex;
       justify-content: center;
       align-items: center;
-      z-index: 1000;
+      z-index: 999;
     }
+
     .modal-content {
       background: white;
-      padding: 20px;
+      padding: 25px;
       border-radius: 8px;
-      max-width: 80%;
-      max-height: 80vh;
-      overflow: auto;
+      max-width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
     }
 
-    .vehicle-list {
-    max-height: 300px;
-    overflow-y: auto;
-  }
+    .vehicle-list, .node-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
 
-  .vehicle-item {
-    cursor: pointer;
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-  }
+    .vehicle-item, .node-item {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      cursor: pointer;
+    }
 
-  .vehicle-item:hover {
-    background-color: #f5f5f5;
-  }
+    .vehicle-item:hover, .node-item:hover {
+      background-color: #f1f1f1;
+    }
 
-  .node-list {
-    margin-top: 15px;
-    max-height: 300px;
-    overflow-y: auto;
-  }
+    .loader {
+      border: 5px solid #eee;
+      border-top: 5px solid #007bff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
 
-  .node-item {
-    padding: 8px;
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
-    margin-bottom: 5px;
-    border-radius: 4px;
-  }
-
-  .loader {
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #3498db;
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-    margin: 20px auto;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
-  <h1>G&G БОТ</h1>
-  
-  <div class="input-group">
-    <input type="text" id="partNumberInput" placeholder="Enter part number">
-    <button id="queryPartBtn">Проверить Артикул</button>
-  </div>
+  <div class="container">
+    <h1>G&G БОТ</h1>
 
-  
-  <button id="wipeDbBtn">Сбросить Базу Данных</button>
-  <button id="startScraperBtn">Запустить</button>
-  <button id="scrapeNodesBtn">Запустить Узлы</button>
-  
-  <div id="progressBar"><div></div></div>
-  <div class="control-group">
-  <div class="file-control">
-    <button id="selectFileBtn" class="btn">Выбрать Excel Файл</button>
-    <span id="filePathDisplay">Файл не выбран</span>
-  </div>
-  <button id="openDbBtn">Открыть Базу Данных</button>
-  <button id="downloadCsvBtn">Скачать CSV</button>
+    <div class="input-group">
+      <input type="text" id="partNumberInput" placeholder="Введите артикул">
+      <button id="queryPartBtn">Проверить</button>
+    </div>
 
+    <div class="btn-group">
+      <button id="selectFileBtn">Выбрать Excel Файл</button>
+      <button id="startScraperBtn" disabled>Запустить</button>
+      <button id="scrapeNodesBtn">Узлы</button>
+      <button id="wipeDbBtn">Сбросить БД</button>
+      <button id="openDbBtn">Открыть БД</button>
+      <button id="downloadCsvBtn">CSV</button>
+    </div>
+
+    <div class="file-control">
+      <span id="filePathDisplay">Файл не выбран</span>
+    </div>
+
+    <div id="progressBar"><div></div></div>
+  </div>
+  
+<div id="dbViewer" style="display: none;">
+  <div id="dbTabHeader">
+    <button id="dbBackBtn">← Назад</button>
+  </div>
+  <div id="dbContent"></div>
+</div>
 
   <script src="renderer.js"></script>
 </body>
