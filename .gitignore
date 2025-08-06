@@ -4,5 +4,6 @@ JD/backup.js
 node_modules/
 dist/
 JD/package-lock.json
+data/
 # CSV temp results file
 output/

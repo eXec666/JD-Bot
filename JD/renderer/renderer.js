@@ -9,31 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadCsvBtn = document.getElementById('downloadCsvBtn');
   const scrapeNodesBtn = document.getElementById('scrapeNodesBtn');
   const openDbBtn = document.getElementById('openDbBtn');
-
-  const mainMenu = document.getElementById('mainMenu');
-  const dbViewer = document.getElementById('dbViewer');
-  const dbContent = document.getElementById('dbContent');
-  const dbBackBtn = document.getElementById('dbBackBtn');
-
+  
+  // State variables
   let debounceTimer;
+  let selectedFilePath = null;
 
   // ======================
-  // UI Switching
-  // ======================
-  function switchToDbView() {
-    mainMenu.style.display = 'none';
-    dbViewer.style.display = 'block';
-  }
-
-  function switchToMainMenu() {
-    dbViewer.style.display = 'none';
-    mainMenu.style.display = 'block';
-  }
-
-  dbBackBtn.addEventListener('click', switchToMainMenu);
-
-  // ======================
-  // Notification
+  // Helper Functions
   // ======================
   function showNotification(message, isError = false) {
     const note = document.createElement('div');
@@ -43,13 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => note.remove(), 3000);
   }
 
-  // ======================
-  // Modal
-  // ======================
   function createModal(title, contentHTML, closeCallback = null) {
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
-
+    
     const content = document.createElement('div');
     content.className = 'modal-content';
     content.innerHTML = `
@@ -57,35 +36,36 @@ document.addEventListener('DOMContentLoaded', () => {
       ${contentHTML}
       <button class="modal-close-btn">Close</button>
     `;
-
+    
     modal.appendChild(content);
     document.body.appendChild(modal);
-
+    
+    // Close button handler
     content.querySelector('.modal-close-btn').addEventListener('click', () => {
       document.body.removeChild(modal);
       if (closeCallback) closeCallback();
     });
-
+    
     return modal;
   }
 
   // ======================
-  // Search Logic
+  // Search Functionality
   // ======================
-  partInput.addEventListener('focus', function () {
+  partInput.addEventListener('focus', function() {
     this.select();
     searchResults.style.display = 'none';
   });
 
-  partInput.addEventListener('input', function (e) {
+  partInput.addEventListener('input', function(e) {
     clearTimeout(debounceTimer);
     const query = e.target.value.trim();
-
+    
     if (query.length < 3) {
       searchResults.style.display = 'none';
       return;
     }
-
+    
     debounceTimer = setTimeout(async () => {
       try {
         const result = await window.electronAPI.queryPartSuggestions(query);
@@ -97,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
   });
 
-  partInput.addEventListener('keydown', function (e) {
+  partInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       searchResults.style.display = 'none';
       performSearch();
@@ -127,10 +107,11 @@ document.addEventListener('DOMContentLoaded', () => {
   async function performSearch() {
     const partNumber = partInput.value.trim();
     if (!partNumber) return;
-
+    
     try {
       const result = await window.electronAPI.queryPart(partNumber);
       if (result.error) throw new Error(result.error);
+      
       showResultsModal(partNumber, result);
     } catch (error) {
       console.error('Search failed:', error);
@@ -140,22 +121,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showResultsModal(partNumber, result) {
     createModal(
-      `Совместимость: ${partNumber}`,
+      `Compatibility Results for ${partNumber}`,
       `
-        <p>Найдено ${result.totalUnique} подходящих ТС:</p>
+        <p>Found ${result.totalUnique} compatible vehicles:</p>
         <ul class="vehicle-list">
           ${result.rows.map(row => `
             <li class="vehicle-item" 
                 data-vehicle-id="${row.vehicle_id}" 
                 data-part-number="${partNumber}">
-              ${row.vehicle_name} (${row.cnt} совпадений)
+              ${row.vehicle_name} (${row.cnt} matches)
             </li>
           `).join('')}
         </ul>
       `,
       () => partInput.focus()
     );
-
+    
+    // Add click handlers for vehicle items
     document.querySelectorAll('.vehicle-item').forEach(item => {
       item.addEventListener('click', (e) => {
         const vehicleId = e.currentTarget.dataset.vehicleId;
@@ -165,27 +147,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ======================
+  // Node Details
+  // ======================
   async function showNodeDetails(partNumber, vehicleId) {
     const loadingModal = createModal(
-      'Загрузка узлов',
+      'Loading Node Details',
       '<div class="loader"></div>'
     );
-
+    
     try {
       const result = await window.electronAPI.getNodeDetails(partNumber, vehicleId);
       document.body.removeChild(loadingModal);
-
+      
       if (result.error) throw new Error(result.error);
-
+      
       createModal(
-        'Узлы',
+        'Node Details',
         `
-          <p><strong>Артикул:</strong> ${partNumber}</p>
-          <p><strong>ТС:</strong> ${result.vehicleName}</p>
+          <p><strong>Part:</strong> ${partNumber}</p>
+          <p><strong>Vehicle:</strong> ${result.vehicleName}</p>
           <div class="node-list">
-            ${result.nodes.length > 0
+            ${result.nodes.length > 0 
               ? result.nodes.map(node => `<div class="node-item">${node}</div>`).join('')
-              : '<p>Нет узлов</p>'}
+              : '<p>No nodes found</p>'}
           </div>
         `
       );
@@ -196,113 +181,149 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ======================
-  // DB View (in-app)
-  // ======================
-  openDbBtn.addEventListener('click', async () => {
-    switchToDbView();
-
-    dbContent.innerHTML = '<div class="loader"></div>';
-
-    try {
-      const result = await window.electronAPI.getTableData();
-      if (!result.success) throw new Error(result.error);
-
-      dbContent.innerHTML = `
+  function displayTableData(data) {
+    createModal(
+      'Database Table Data',
+      `
         <div class="table-container">
           <table>
             <thead>
               <tr>
-                <th>Артикул</th>
-                <th>Ref ID</th>
-                <th>Путь</th>
+                <th>Part Number</th>
+                <th>Equipment Ref ID</th>
+                <th>Node Path</th>
               </tr>
             </thead>
             <tbody>
-              ${result.data.map(row => `
+              ${data.map(row => `
                 <tr>
-                  <td>${row.partNumber || '—'}</td>
-                  <td>${row.equipmentRefId || '—'}</td>
-                  <td>${row.nodePath || '—'}</td>
+                  <td>${row.partNumber || 'N/A'}</td>
+                  <td>${row.equipmentRefId || 'N/A'}</td>
+                  <td>${row.nodePath || 'N/A'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
-        <p class="table-meta">Всего записей: ${result.data.length}</p>
-      `;
-    } catch (error) {
-      dbContent.innerHTML = '';
-      console.error('Ошибка загрузки таблицы:', error);
-      showNotification(`Ошибка: ${error.message}`, true);
-    }
-  });
+        <p class="table-meta">Showing ${data.length} records</p>
+      `
+    );
+  }
 
   // ======================
-  // Buttons
+  // Button Handlers
   // ======================
   queryPartBtn.addEventListener('click', performSearch);
 
+  startScraperBtn.addEventListener('click', async () => {
+  if (!window.selectedFilePath) {
+    showNotification('Please select an Excel file first', true);
+    return;
+  }
+
+  startScraperBtn.disabled = true;
+  startScraperBtn.textContent = 'Scraping Vehicles...';
+
+  try {
+    // Call vehicle scraping handler
+    const result = await window.electronAPI.scrapeVehicles(window.selectedFilePath);
+    if (result.error) throw new Error(result.error);
+    showNotification(result.message || 'Vehicle scraping completed!');
+  } catch (err) {
+    showNotification(`Error: ${err.message}`, true);
+  } finally {
+    startScraperBtn.disabled = false;
+    startScraperBtn.textContent = 'Start Scraper';
+  }
+});
+
+  wipeDbBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to wipe the database?')) {
+      window.electronAPI.wipeDb()
+        .then(message => showNotification(message))
+        .catch(err => showNotification(`Error: ${err.message}`, true));
+    }
+  });
+
   selectFileBtn.addEventListener('click', async () => {
+  try {
+    const filePath = await window.electronAPI.selectExcelFile();
+    if (filePath) {
+      document.getElementById('filePathDisplay').textContent =
+        `Selected: ${filePath.split('\\').pop()}`;
+      window.selectedFilePath = filePath; // ✅ this is important
+      startScraperBtn.disabled = false;
+    } else {
+      showNotification('No file selected');
+    }
+  } catch (err) {
+    showNotification(`Error selecting file: ${err.message}`);
+  }
+});
+
+
+  openDbBtn.addEventListener('click', () => {
+    window.electronAPI.openDbViewer();
+  });
+
+  downloadCsvBtn.addEventListener('click', async () => {
+    downloadCsvBtn.disabled = true;
+    downloadCsvBtn.textContent = 'Generating CSV...';
+    
     try {
-      const filePath = await window.electronAPI.selectExcelFile();
-      if (filePath) {
-        document.getElementById('filePathDisplay').textContent =
-          `Выбран: ${filePath.split('\\').pop()}`;
-        window.selectedFilePath = filePath;
-        startScraperBtn.disabled = false;
-      } else {
-        showNotification('Файл не выбран');
-      }
-    } catch (err) {
-      showNotification(`Ошибка выбора файла: ${err.message}`);
+      const result = await window.electronAPI.downloadCsv();
+      if (result.error) throw new Error(result.error);
+      
+      showNotification(result.message || `CSV files saved to: ${result.directory}`);
+      window.electronAPI.openFolder(result.directory);
+    } catch (error) {
+      showNotification(`Error: ${error.message}`, true);
+    } finally {
+      downloadCsvBtn.disabled = false;
+      downloadCsvBtn.textContent = 'Download CSV';
     }
   });
 
   startScraperBtn.addEventListener('click', async () => {
-    if (!window.selectedFilePath) {
-      showNotification('Сначала выберите Excel файл', true);
-      return;
-    }
+  if (!window.selectedFilePath) {
+    showNotification('Please select an Excel file first', true);
+    return;
+  }
 
-    startScraperBtn.disabled = true;
-    startScraperBtn.textContent = 'Сбор данных...';
+  startScraperBtn.disabled = true;
+  startScraperBtn.textContent = 'Scraping Vehicles...';
 
-    try {
-      const result = await window.electronAPI.scrapeVehicles(window.selectedFilePath);
-      if (result.error) throw new Error(result.error);
-      showNotification(result.message || 'Готово');
-    } catch (err) {
-      showNotification(`Ошибка: ${err.message}`, true);
-    } finally {
-      startScraperBtn.disabled = false;
-      startScraperBtn.textContent = 'Запустить';
-    }
-  });
+  try {
+    // Call vehicle scraping handler
+    const result = await window.electronAPI.scrapeVehicles(window.selectedFilePath);
+    if (result.error) throw new Error(result.error);
+    showNotification(result.message || 'Vehicle scraping completed!');
+  } catch (err) {
+    showNotification(`Error: ${err.message}`, true);
+  } finally {
+    startScraperBtn.disabled = false;
+    startScraperBtn.textContent = 'Start Scraper';
+  }
+});
 
-  scrapeNodesBtn.addEventListener('click', async () => {
-    scrapeNodesBtn.disabled = true;
-    scrapeNodesBtn.textContent = 'Сбор узлов...';
+// Update scrapeNodesBtn (node scraping)
+scrapeNodesBtn.addEventListener('click', async () => {
+  scrapeNodesBtn.disabled = true;
+  scrapeNodesBtn.textContent = 'Scraping Nodes...';
 
-    try {
-      const result = await window.electronAPI.scrapeNodes();
-      if (result.error) throw new Error(result.error);
-      showNotification(result.message || 'Готово');
-    } catch (error) {
-      showNotification(`Ошибка: ${error.message}`, true);
-    } finally {
-      scrapeNodesBtn.disabled = false;
-      scrapeNodesBtn.textContent = 'Узлы';
-    }
-  });
+  try {
+    // Call node scraping handler
+    const result = await window.electronAPI.scrapeNodes();
+    if (result.error) throw new Error(result.error);
+    showNotification(result.message || 'Node scraping completed!');
+  } catch (error) {
+    showNotification(`Error: ${error.message}`, true);
+  } finally {
+    scrapeNodesBtn.disabled = false;
+    scrapeNodesBtn.textContent = 'Scrape Nodes';
+  }
+});
 
-  wipeDbBtn.addEventListener('click', () => {
-    if (confirm('Сбросить базу данных?')) {
-      window.electronAPI.wipeDb()
-        .then(message => showNotification(message))
-        .catch(err => showNotification(`Ошибка: ${err.message}`, true));
-    }
-  });
 
   // ======================
   // Progress Updates
@@ -313,26 +334,11 @@ document.addEventListener('DOMContentLoaded', () => {
       progressBar.style.width = `${percent}%`;
       progressBar.style.backgroundColor = percent === 100 ? '#4CAF50' : '#4285f4';
       progressBar.textContent = `${percent}%`;
-
-      const progressText = document.querySelector('#progressBar p');
-      if (progressText && message) progressText.textContent = message;
-    }
-  });
-
-  downloadCsvBtn.addEventListener('click', async () => {
-    downloadCsvBtn.disabled = true;
-    downloadCsvBtn.textContent = 'Создание CSV...';
-
-    try {
-      const result = await window.electronAPI.downloadCsv();
-      if (result.error) throw new Error(result.error);
-      showNotification(result.message || `CSV сохранён: ${result.directory}`);
-      window.electronAPI.openFolder(result.directory);
-    } catch (error) {
-      showNotification(`Ошибка: ${error.message}`, true);
-    } finally {
-      downloadCsvBtn.disabled = false;
-      downloadCsvBtn.textContent = 'CSV';
+      
+      if (message) {
+        const progressText = document.querySelector('#progressBar p');
+        if (progressText) progressText.textContent = message;
+      }
     }
   });
 });
