@@ -1,0 +1,7 @@
+# Previous backup system, not needed with git
+JD/backup.js
+# Ignore Node.js dependencies and build
+node_modules/
+dist/
+# CSV temp results file
+output/

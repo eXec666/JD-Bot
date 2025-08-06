@@ -1,0 +1,58 @@
+{
+  "name": "jd-bot",
+  "version": "1.0.0",
+  "bin": "main.js",
+  "description": "John Deere parts scraper",
+  "author": "Andrei Berzin",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package-win": "electron-packager . JDBot --platform=win32 --arch=x64 --out=dist --overwrite --extra-resource=JD_clean.xlsx",
+    "build": "electron-builder --win"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "axios": "^1.10.0",
+    "better-sqlite3": "^12.2.0",
+    "chrome-launcher": "^1.2.0",
+    "csv-writer": "^1.6.0",
+    "data-uri-to-buffer": "^6.0.2",
+    "exceljs": "^4.3.0",
+    "iconv-lite": "^0.6.3",
+    "node-fetch": "^2.7.0",
+    "node-persist": "^4.0.4",
+    "puppeteer": "^24.15.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "electron": "^29.3.1",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.1",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.yourname.jdbot",
+    "mac": {
+      "sign": false
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "extraFiles": [
+      "JD_clean.xlsx"
+    ],
+    "extraResources": [
+      {
+        "from": "JD_clean.xlsx",
+        "to": "JD_clean.xlsx"
+      },
+      {
+        "from": "node_modules/puppeteer/.local-chromium",
+        "to": "chromium"
+      }
+    ]
+  }
+}

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scraper GUI</title>
+  <style>
+    
+    body { font-family: sans-serif; padding: 20px; }
+    button { margin: 5px; padding: 10px 20px; }
+    #progressBar { width: 100%; background: #eee; height: 20px; border-radius: 5px; overflow: hidden; margin: 10px 0; }
+    #progressBar div { height: 100%; background: #4caf50; width: 0; transition: 0.3s; }
+    .input-group { margin: 10px 0; }
+    input { padding: 8px; width: 200px; }
+    .search-container {
+      position: relative;
+      margin: 20px 0;
+    }
+    #searchResults {
+      position: absolute;
+      width: 100%;
+      max-height: 300px;
+      overflow-y: auto;
+      background: white;
+      border: 1px solid #ddd;
+      z-index: 100;
+      display: none;
+    }
+    .search-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    .search-item:hover {
+      background-color: #f5f5f5;
+    }
+    #partNumberInput {
+      width: 300px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 80%;
+      max-height: 80vh;
+      overflow: auto;
+    }
+
+    .vehicle-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .vehicle-item {
+    cursor: pointer;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .vehicle-item:hover {
+    background-color: #f5f5f5;
+  }
+
+  .node-list {
+    margin-top: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .node-item {
+    padding: 8px;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    margin-bottom: 5px;
+    border-radius: 4px;
+  }
+
+  .loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  </style>
+</head>
+<body>
+  <h1>G&G БОТ</h1>
+  
+  <div class="input-group">
+    <input type="text" id="partNumberInput" placeholder="Enter part number">
+    <button id="queryPartBtn">Проверить Артикул</button>
+  </div>
+
+  
+  <button id="wipeDbBtn">Сбросить Базу Данных</button>
+  <button id="startScraperBtn">Запустить</button>
+  <button id="scrapeNodesBtn">Запустить Узлы</button>
+  
+  <div id="progressBar"><div></div></div>
+  <div class="control-group">
+  <div class="file-control">
+    <button id="selectFileBtn" class="btn">Выбрать Excel Файл</button>
+    <span id="filePathDisplay">Файл не выбран</span>
+  </div>
+  <button id="openDbBtn">Открыть Базу Данных</button>
+  <button id="downloadCsvBtn">Скачать CSV</button>
+
+
+  <script src="renderer.js"></script>
+</body>
+</html>
