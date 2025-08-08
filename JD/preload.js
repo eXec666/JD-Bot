@@ -1,22 +1,46 @@
+// preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    initDb: () => ipcRenderer.invoke('init-db'),
-    wipeDb: () => ipcRenderer.invoke('wipe-db'),
-    selectExcelFile: () => ipcRenderer.invoke('select-excel-file'),
-    queryPart: (partNumber) => ipcRenderer.invoke('query-part', partNumber),
-    queryPartSuggestions: (query) => ipcRenderer.invoke('query-part-suggestions', query),
-    getNodeDetails: (partNumber, vehicleId) => ipcRenderer.invoke('get-node-details', partNumber, vehicleId),
-    scrapeVehicles: (filePath) => ipcRenderer.invoke('scrape-vehicles', filePath),
-    scrapeNodes: () => ipcRenderer.invoke('scrape-nodes'),
-    openDbViewer: () => ipcRenderer.send('open-db-viewer'),
-    getTableData: (table) => ipcRenderer.invoke('get-table-data', table),
-    downloadCsv: () => ipcRenderer.invoke('download-csv'),
-    openFolder: (path) => ipcRenderer.invoke('open-folder', path),
-    onProgress: (callback) => {
-        ipcRenderer.on('progress-update', (event, percent, message) => callback(percent, message));
-    },
-    onLog: (callback) => {
-        ipcRenderer.on('log-message', (_, payload) => callback(payload));
-    }
+  // Database initialization & management
+  initDb:           () => ipcRenderer.invoke('init-db'),
+  wipeDb:           () => ipcRenderer.invoke('wipe-db'),
+  refreshDatabase:  () => ipcRenderer.invoke('refresh-database'),
+
+  // Excel file import & scraping
+  selectExcelFile:       () => ipcRenderer.invoke('select-excel-file'),
+  scrapeVehicles:        (filePath) => ipcRenderer.invoke('scrape-vehicles', filePath),
+  scrapeNodes:           () => ipcRenderer.invoke('scrape-nodes'),
+
+  // Part lookups & suggestions
+  queryPart:             (partNumber) => ipcRenderer.invoke('query-part', partNumber),
+  queryPartSuggestions:  (query)       => ipcRenderer.invoke('query-part-suggestions', query),
+
+  // Node details
+  getNodeDetails:        (partNumber, vehicleId) => 
+                          ipcRenderer.invoke('get-node-details', partNumber, vehicleId),
+
+  // Database viewer (legacy call—now routed into same window)
+  openDbViewer:   () => ipcRenderer.send('open-db-viewer'),
+  getTableData:   (table) => ipcRenderer.invoke('get-table-data', table),
+  downloadCsv:    () => ipcRenderer.invoke('download-csv'),
+
+  // File system helpers
+  openFolder:     (path) => ipcRenderer.invoke('open-folder', path),
+
+  // Progress & logs
+  onProgress:     (callback) => {
+    ipcRenderer.on('progress-update', (event, percent, message) => {
+      callback(percent, message);
+    });
+  },
+  onLog:          (callback) => {
+    ipcRenderer.on('log-message', (event, payload) => {
+      callback(payload);
+    });
+  },
+  
+  onForceRefresh: (callback) => {
+    ipcRenderer.on('force-refresh', callback);
+  }
 });

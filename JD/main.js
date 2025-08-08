@@ -231,11 +231,6 @@ ipcMain.handle('scrape-nodes', async (event) => {
     };
   }
 });
-
-
-
-
-
 // Query node details handler
 ipcMain.handle('get-node-details', async (_, partNumber, vehicleId) => {
     try {

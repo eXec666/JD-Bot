@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       if (force || !tableData[tableName]) {
-        const response = await window.dbViewerAPI.getTableData();
+        const response = await window.electronAPI.getTableData();
         
         if (!response || !response.success) {
           throw new Error(response?.error || 'Failed to load table data');
