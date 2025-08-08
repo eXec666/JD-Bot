@@ -328,7 +328,7 @@ scrapeNodesBtn.addEventListener('click', async () => {
   // ======================
   // Progress Updates
   // ======================
-  window.electronAPI.onProgress(({ percent, message }) => {
+  window.electronAPI.onProgress(( percent, message ) => {
     const progressBar = document.querySelector('#progressBar div');
     if (progressBar) {
       progressBar.style.width = `${percent}%`;

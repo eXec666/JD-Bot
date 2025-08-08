@@ -14,6 +14,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadCsv: () => ipcRenderer.invoke('download-csv'),
     openFolder: (path) => ipcRenderer.invoke('open-folder', path),
     onProgress: (callback) => {
-        ipcRenderer.on('progress-update', (event, progress) => callback(progress));
+        ipcRenderer.on('progress-update', (event, percent, message) => callback(percent, message));
     }
 });
