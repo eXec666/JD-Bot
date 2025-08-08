@@ -1,5 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements
+  const showLogsBtn = document.getElementById('showLogsBtn');
+  const logsContainer = document.getElementById('logsContainer');
+  const logsWindow = document.getElementById('logsWindow');
+  const scrollDownBtn = document.getElementById('scrollDownBtn'); 
   const partInput = document.getElementById('partNumberInput');
   const searchResults = document.getElementById('searchResults');
   const queryPartBtn = document.getElementById('queryPartBtn');
@@ -9,10 +13,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadCsvBtn = document.getElementById('downloadCsvBtn');
   const scrapeNodesBtn = document.getElementById('scrapeNodesBtn');
   const openDbBtn = document.getElementById('openDbBtn');
+  const collapseLogsBtn = document.getElementById('collapseLogsBtn');
+
   
   // State variables
   let debounceTimer;
   let selectedFilePath = null;
+
+  let autoScrollEnabled = true;
+
+  function appendLog({ level, msg, ts }) {
+    const line = document.createElement('div');
+    line.textContent = `[${ts}] ${msg}`;
+    line.style.color = (level === 'error' ? 'red' : '#888');
+    logsWindow.appendChild(line);
+    if (autoScrollEnabled) logsWindow.scrollTop = logsWindow.scrollHeight;
+  }
+
+  window.electronAPI.onLog(appendLog);
+
+  logsWindow.addEventListener('scroll', () => {
+    const atBottom = logsWindow.scrollTop + logsWindow.clientHeight 
+                    >= logsWindow.scrollHeight - 5;
+    autoScrollEnabled = atBottom;
+    scrollDownBtn.style.display = atBottom ? 'none' : 'block';
+  });
+
+  scrollDownBtn.addEventListener('click', () => {
+    logsWindow.scrollTop = logsWindow.scrollHeight;
+    autoScrollEnabled = true;
+    scrollDownBtn.style.display = 'none';
+  }); 
+
+
 
   // ======================
   // Helper Functions
@@ -228,14 +261,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call vehicle scraping handler
     const result = await window.electronAPI.scrapeVehicles(window.selectedFilePath);
     if (result.error) throw new Error(result.error);
-    showNotification(result.message || 'Vehicle scraping completed!');
-  } catch (err) {
-    showNotification(`Error: ${err.message}`, true);
-  } finally {
-    startScraperBtn.disabled = false;
-    startScraperBtn.textContent = 'Start Scraper';
-  }
-});
+      showNotification(result.message || 'Vehicle scraping completed!');
+    } catch (err) {
+      showNotification(`Error: ${err.message}`, true);
+    } finally {
+      startScraperBtn.disabled = false;
+      startScraperBtn.textContent = 'Start Scraper';
+    }
+  });
 
   wipeDbBtn.addEventListener('click', () => {
     if (confirm('Are you sure you want to wipe the database?')) {
@@ -259,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (err) {
     showNotification(`Error selecting file: ${err.message}`);
   }
-});
+  });
 
 
   openDbBtn.addEventListener('click', () => {
@@ -341,4 +374,48 @@ scrapeNodesBtn.addEventListener('click', async () => {
       }
     }
   });
+
+  // ======================
+  // Tab switching for logs
+  // ======================
+  showLogsBtn.addEventListener('click', () => {
+    document.querySelector('.container').style.display = 'none';
+    logsContainer.style.display = 'flex';
+  });
+
+  // Log appending & auto-scroll
+  let autoScroll = true;
+  function appendLog({ level, msg, ts }) {
+    const line = document.createElement('div');
+    line.textContent = `[${ts}] ${msg}`;
+    line.style.color = level === 'error' ? 'red' : '#888';
+    logsWindow.appendChild(line);
+    if (autoScroll) logsWindow.scrollTop = logsWindow.scrollHeight;
+  }
+  window.electronAPI.onLog(appendLog);
+
+  // Pause/resume auto-scroll
+  logsWindow.addEventListener('scroll', () => {
+    const atBottom = logsWindow.scrollTop + logsWindow.clientHeight >= logsWindow.scrollHeight - 5;
+    autoScroll = atBottom;
+    scrollDownBtn.style.display = atBottom ? 'none' : 'block';
+  });
+  scrollDownBtn.addEventListener('click', () => {
+    logsWindow.scrollTop = logsWindow.scrollHeight;
+    autoScroll = true;
+    scrollDownBtn.style.display = 'none';
+  });
+
+  showLogsBtn.addEventListener('click', () => {
+    document.querySelector('.container').style.display = 'none';
+    logsContainer.style.display = 'flex';
+  });
+
+  collapseLogsBtn.addEventListener('click', () => {
+    logsContainer.style.display = 'none';
+    document.querySelector('.container').style.display = 'block';
+  });
+
+
+  
 });

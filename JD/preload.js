@@ -15,5 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFolder: (path) => ipcRenderer.invoke('open-folder', path),
     onProgress: (callback) => {
         ipcRenderer.on('progress-update', (event, percent, message) => callback(percent, message));
+    },
+    onLog: (callback) => {
+        ipcRenderer.on('log-message', (_, payload) => callback(payload));
     }
 });

@@ -145,6 +145,39 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    /* Logs styles */
+    #logsContainer {
+      display: none;
+      height: 300px;
+      overflow-y: auto;
+      background: #f9f9f9;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      position: relative;
+      margin-top: 20px;
+    }
+
+    #scrollToBottomBtn {
+      display: none;
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      padding: 5px 10px;
+      font-size: 12px;
+      border-radius: 4px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #scrollToBottomBtn:hover {
+      background-color: #0056b3;
+    }
   </style>
 </head>
 <body>
@@ -160,9 +193,10 @@
       <button id="selectFileBtn">Выбрать Excel Файл</button>
       <button id="startScraperBtn" disabled>Запустить</button>
       <button id="scrapeNodesBtn">Узлы</button>
-      <button id="wipeDbBtn">Сбросить БД</button>
+      <button id="wipeDbBtn">Сбросить БД</button> 
       <button id="openDbBtn">Открыть БД</button>
       <button id="downloadCsvBtn">CSV</button>
+      <button id="showLogsBtn">Logs</button>
     </div>
 
     <div class="file-control">
@@ -170,8 +204,25 @@
     </div>
 
     <div id="progressBar"><div></div></div>
+
   </div>
 
+  <div id="logsContainer" class="tab-content" 
+       style="display:none; position:relative; height:600px; flex-direction:column;">
+    <div id="logsWindow"
+      style="flex:1; overflow-y:auto; background:#f9f9f9;
+      padding:10px; font-family:monospace; color:#888;">
+    </div>
+    <button id="collapseLogsBtn"
+      aria-label="Close logs"
+      style="position:absolute; top:10px; right:10px;">
+      Обратно
+    </button>
+    <button id="scrollDownBtn"
+      style="display:none; position:absolute; bottom:20px; right:20px;">
+      Вниз
+    </button>
+  </div>
   <script src="renderer.js"></script>
 </body>
 </html>
