@@ -11,6 +11,7 @@ const storage = require('node-persist');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const { app } = require('electron') || {};
 
+
 // ======================
 // DNS Configuration
 // ======================

@@ -2,17 +2,16 @@
 console.log('MAIN PROCESS STARTED');
 debugger;
 process.env.DEBUG = '0';
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('better-sqlite3');
-const { queryVehiclesForPart } = require('./scraper/compat_query.js');
+const { queryVehiclesForPart, queryPartSuggestions } = require('./scraper/compat_query.js');
 const { DB_PATH } = require('./db/db_config.js');
-const { wipeDatabase } = require('./scraper/vehicle_scraper.js');
+const { wipeDatabase, runWithProgress } = require('./scraper/vehicle_scraper.js'); // Renamed back to runWithProgress for simplicity
 const { getTableData } = require('./db/db_utils.js');
-const { runWithProgress } = require('./scraper/node_scraper');
+const { runWithProgress: runNodeScraper } = require('./scraper/node_scraper');
 const dbManager = require('./db/db_manager');
-const vehicleScraper = require('./scraper/vehicle_scraper');
 
 
 // Create the main application window
@@ -37,32 +36,70 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-// Refresh database handler
-ipcMain.handle('refresh-database', async () => {
-  // This forces the database to be re-read
-  return { status: 'refreshed' };
+// Listen for the 'scrape-vehicles' event from the renderer process
+ipcMain.handle('scrape-vehicles', async (event, filePath) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  console.log('⚡ Scrape-vehicles IPC called');
+  console.log('Starting vehicle scraping...');
+
+  const progressCallback = (percent, message) => {
+    console.log(`⏳ Vehicle Progress: ${percent}% - ${message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(
+        'progress-update',
+        percent,
+        message,
+      );
+    }
+  };
+  
+  const onForceRefresh = () => {
+    win.webContents.send('force-refresh');
+  };
+
+  try {
+    // Corrected call: pass filePath first, then the progress callback
+    const result = await runWithProgress(filePath, onForceRefresh, progressCallback);
+    if (result.error) throw new Error(result.error);
+    return { message: 'Vehicle scrape completed!', results: result.results };
+  } catch (err) {
+    console.error(`💥 Vehicle scrape failed: ${err.message}`);
+    return { error: err.message };
+  }
 });
 
-// Add this with your other IPC handlers in main.js
-ipcMain.handle('get-table-data', async () => {
+
+// Other handlers (like 'wipe-db', 'select-excel-file', etc.) would go here.
+ipcMain.handle('wipe-db', async () => {
     try {
-        const tables = dbManager.getTables();
-        const data = {};
-        for (const table of tables) {
-            data[table.name] = dbManager.getTableData(table.name);
+        const result = wipeDatabase();
+        if (result.success) {
+            return { message: result.message };
+        } else {
+            return { error: result.message };
         }
-        return { success: true, data };
-    } catch (error) {
-        return { success: false, error: error.message };
+    } catch (err) {
+        return { error: err.message };
     }
 });
 
-// Database wipe handler
-ipcMain.handle('wipe-db', async () => {
-  return await wipeDatabase();
+
+// ... (rest of your IPC handlers) ...
+ipcMain.handle('select-excel-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'Excel Files', extensions: ['xlsx', 'xls'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (canceled || !filePaths?.length) {
+    return null;
+  }
+  return filePaths[0];
 });
 
-// Part query handler
 ipcMain.handle('query-part', async (event, partNumber) => {
   try {
     const result = await queryVehiclesForPart(partNumber);
@@ -81,148 +118,6 @@ ipcMain.handle('query-part-suggestions', async (event, query) => {
   }
 });
 
-// Input file handler
-ipcMain.handle('select-excel-file', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openFile'],
-    filters: [
-      { name: 'Excel Files', extensions: ['xlsx', 'xls'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
-  });
-
-  if (canceled || !filePaths?.length) return null;
-
-  return filePaths[0];  // ✅ returns full absolute path
-});
-
-ipcMain.handle('scrape-vehicles', async (event, inputFilePath) => {
-  console.log('⚡️ scrape-vehicles IPC called');
-  
-  try {
-    let win = BrowserWindow.getFocusedWindow();
-    if (!win) {
-      const windows = BrowserWindow.getAllWindows();
-      win = windows.find(w => w.isVisible()) || windows[0];
-    }
-
-    console.log('🔌 Starting vehicle scraping...');
-    const result = await vehicleScraper.runWithProgress(
-      (percent, message) => {
-        console.log(`📦 Vehicle Progress: ${percent}% - ${message}`);
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('progress-update', 
-            percent, 
-            message,
-          );
-        }
-      },
-      () => {
-        // Force refresh callback
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('force-refresh');
-        }
-      },
-      inputFilePath
-    );
-
-    console.log('✅ Vehicle scrape completed:', result);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('scrape-complete', result);
-    }
-
-    return result;
-  } catch (err) {
-    console.error('❌ Vehicle scrape failed:', err);
-    const windows = BrowserWindow.getAllWindows();
-    if (windows.length > 0) {
-      windows[0].webContents.send('scrape-error', {
-        error: err.message,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-      });
-    }
-    return { error: err.message };
-  }
-});
-
-// Scraper progress handler
-ipcMain.handle('scrape-nodes', async (event) => {
-  console.log('scrape-nodes IPC called');
-  
-  try {
-    // Get all windows and find a visible one if none is focused
-    let win = BrowserWindow.getFocusedWindow();
-    if (!win) {
-      const windows = BrowserWindow.getAllWindows();
-      win = windows.find(w => w.isVisible()) || windows[0];
-    }
-
-    if (!win) {
-      throw new Error('No browser window available for progress updates');
-    }
-
-    console.log('🔌 Loading scraper module...');
-    const { runWithProgress } = require('./scraper/node_scraper');
-    
-    // Verify database connection
-    try {
-      const testQuery = await dbManager.query('SELECT 1 as test');
-      console.log('Database connection test:', testQuery);
-    } catch (dbErr) {
-      console.error('Database connection failed:', dbErr);
-      throw new Error(`Database connection failed: ${dbErr.message}`);
-    }
-
-    console.log('Starting scrape process...');
-    const result = await runWithProgress((percent, message) => {
-      try {
-        console.log(`Progress: ${percent}% - ${message}`);
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('progress-update', 
-            percent, 
-            message,
-          );
-        }
-      } catch (progressErr) {
-        console.error('Progress callback failed:', progressErr);
-      }
-    });
-
-    console.log('Scrape completed:', {
-      success: result.results?.filter(r => r.nodePath).length || 0,
-      errors: result.results?.filter(r => r.error).length || 0
-    });
-
-    // Send final completion message
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('scrape-complete', result);
-    }
-
-    return result;
-  } catch (err) {
-    console.error('❌ Scrape failed:', err);
-    
-    // Try to send error to renderer if window exists
-    const windows = BrowserWindow.getAllWindows();
-    if (windows.length > 0) {
-      windows[0].webContents.send('scrape-error', {
-        error: err.message,
-        stack: err.stack
-      });
-    }
-    
-    return { 
-      error: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    };
-  }
-});
-
-
-
-
-
-// Query node details handler
 ipcMain.handle('get-node-details', async (_, partNumber, vehicleId) => {
     try {
         const vehicle = dbManager.query(
@@ -247,7 +142,40 @@ ipcMain.handle('get-node-details', async (_, partNumber, vehicleId) => {
     }
 });
 
-// Open DB Viewer window handler
+ipcMain.handle('get-table-data', async (event, table) => {
+    try {
+        const result = getTableData(table);
+        return { success: true, data: result };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('scrape-nodes', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  console.log('Starting node scraping...');
+
+  const progressCallback = (percent, message) => {
+    console.log(`Node Progress: ${percent}% - ${message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(
+        'progress-update',
+        percent,
+        message,
+      );
+    }
+  };
+
+  try {
+    const result = await runNodeScraper(progressCallback);
+    if (result.error) throw new Error(result.error);
+    return { message: 'Node scraping completed!', totalNodesSaved: result.totalNodesSaved };
+  } catch (err) {
+    console.error(`Node scrape failed: ${err.message}`);
+    return { error: err.message };
+  }
+});
+
 ipcMain.on('open-db-viewer', () => {
   const win = new BrowserWindow({
     width: 1200,
@@ -255,21 +183,46 @@ ipcMain.on('open-db-viewer', () => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'db', 'preloadDbViewer.js') // Path to subdirectory
+      preload: path.join(__dirname, 'db', 'preloadDbViewer.js')
     }
   });
 
-  win.loadFile(path.join(__dirname, 'db', 'dbViewer.html')); // Path to subdirectory
+  win.loadFile(path.join(__dirname, 'db', 'dbViewer.html'));
 });
 
-// When all windows are closed, close the app
-app.on('window-all-closed', () => {
-  if (dbManager.db) {
-    dbManager.closeConnection(); // Ensure better-sqlite3 is closed
+ipcMain.handle('download-csv', async () => {
+  const db = dbManager.connect();
+  const filePath = path.join(os.homedir(), 'Desktop', 'scraped_data.csv');
+  const csvData = [];
+  try {
+      const parts = db.prepare('SELECT part_number FROM parts').all();
+      for (const part of parts) {
+          const vehicles = db.prepare(`
+              SELECT v.vehicle_name
+              FROM compatibility c
+              JOIN vehicles v ON c.vehicle_id = v.vehicle_id
+              JOIN parts p ON c.part_id = p.part_id
+              WHERE p.part_number = ?
+          `).all(part.part_number);
+          csvData.push([part.part_number, vehicles.map(v => v.vehicle_name).join(', ')]);
+      }
+      const csvString = csvData.map(e => e.join(",")).join("\n");
+      fs.writeFileSync(filePath, 'Part Number,Compatible Vehicles\n' + csvString);
+      return { success: true, filePath: filePath };
+  } catch (err) {
+      console.error('Error downloading CSV:', err);
+      return { success: false, error: err.message };
+  } finally {
+      dbManager.disconnect();
   }
 });
 
-// Force-quit if backend hangs
-process.on('SIGTERM', () => {
-  app.quit();
+ipcMain.handle('open-folder', async (event, folderPath) => {
+  try {
+    shell.openPath(folderPath);
+    return { success: true };
+  } catch (err) {
+    console.error('Error opening folder:', err);
+    return { success: false, error: err.message };
+  }
 });
