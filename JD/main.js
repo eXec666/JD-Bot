@@ -111,11 +111,10 @@ ipcMain.handle('scrape-vehicles', async (event, inputFilePath) => {
       (percent, message) => {
         console.log(`📦 Vehicle Progress: ${percent}% - ${message}`);
         if (win && !win.isDestroyed()) {
-          win.webContents.send('scrape-progress', {
+          win.webContents.send('progress-update', 
             percent, 
             message,
-            timestamp: new Date().toISOString() 
-          });
+          );
         }
       },
       () => {
@@ -148,7 +147,7 @@ ipcMain.handle('scrape-vehicles', async (event, inputFilePath) => {
 
 // Scraper progress handler
 ipcMain.handle('scrape-nodes', async (event) => {
-  console.log('⚡️ scrape-nodes IPC called');
+  console.log('scrape-nodes IPC called');
   
   try {
     // Get all windows and find a visible one if none is focused
@@ -168,29 +167,28 @@ ipcMain.handle('scrape-nodes', async (event) => {
     // Verify database connection
     try {
       const testQuery = await dbManager.query('SELECT 1 as test');
-      console.log('✅ Database connection test:', testQuery);
+      console.log('Database connection test:', testQuery);
     } catch (dbErr) {
-      console.error('❌ Database connection failed:', dbErr);
+      console.error('Database connection failed:', dbErr);
       throw new Error(`Database connection failed: ${dbErr.message}`);
     }
 
-    console.log('🏁 Starting scrape process...');
+    console.log('Starting scrape process...');
     const result = await runWithProgress((percent, message) => {
       try {
-        console.log(`📦 Progress: ${percent}% - ${message}`);
+        console.log(`Progress: ${percent}% - ${message}`);
         if (win && !win.isDestroyed()) {
-          win.webContents.send('scrape-progress', { 
+          win.webContents.send('progress-update', 
             percent, 
             message,
-            timestamp: new Date().toISOString() 
-          });
+          );
         }
       } catch (progressErr) {
-        console.error('⚠️ Progress callback failed:', progressErr);
+        console.error('Progress callback failed:', progressErr);
       }
     });
 
-    console.log('✅ Scrape completed:', {
+    console.log('Scrape completed:', {
       success: result.results?.filter(r => r.nodePath).length || 0,
       errors: result.results?.filter(r => r.error).length || 0
     });
