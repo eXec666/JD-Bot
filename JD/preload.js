@@ -15,5 +15,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFolder: (path) => ipcRenderer.invoke('open-folder', path),
     onProgress: (callback) => {
         ipcRenderer.on('progress-update', (event, percent, message) => callback(percent, message));
-    }
+    },
+    onDbDumpProgress: (callback) => {
+        const listener = (_event, payload) => callback(payload);
+        ipcRenderer.on('ui:db-dump-progress', listener);
+        // return unsubscribe so you can clean up if needed
+        return () => ipcRenderer.removeListener('ui:db-dump-progress', listener);
+    },
 });

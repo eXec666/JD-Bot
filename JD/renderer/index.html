@@ -63,6 +63,7 @@
       margin-bottom: 20px;
     }
 
+    /* Primary scraping progress bar */
     #progressBar {
       height: 20px;
       background: #e0e0e0;
@@ -70,7 +71,6 @@
       overflow: hidden;
       margin-bottom: 20px;
     }
-
     #progressBar div {
       height: 100%;
       width: 0;
@@ -145,6 +145,23 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    /* DB dump progress bar styles */
+    #db-dump-section { margin: 12px 0; display: none; }
+    #db-progress-track {
+      position: relative;
+      height: 10px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    #db-progress-bar {
+      width: 0%;
+      height: 100%;
+      background: #3b82f6; /* visible blue */
+      transition: width .15s linear;
+    }
+    #db-progress-meta { display:block; margin-top:6px; color:#6b7280; }
   </style>
 </head>
 <body>
@@ -169,7 +186,20 @@
       <span id="filePathDisplay">Файл не выбран</span>
     </div>
 
+    <!-- Original scraping progress bar -->
     <div id="progressBar"><div></div></div>
+
+    <!-- New: DB dump progress (just below the original bar) -->
+    <section id="db-dump-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <strong>Database write progress</strong>
+        <span id="db-progress-label">0%</span>
+      </div>
+      <div id="db-progress-track">
+        <div id="db-progress-bar"></div>
+      </div>
+      <small id="db-progress-meta">0 / 0 rows</small>
+    </section>
   </div>
 
   <script src="renderer.js"></script>
