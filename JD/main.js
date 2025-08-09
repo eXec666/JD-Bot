@@ -7,10 +7,6 @@ const originalLog = console.log;
 const originalErr = console.error;
 const path = require('path');
 const fs = require('fs');
-// const sqlite3 = require('better-sqlite3'); // not used here anymore
-const { queryVehiclesForPart } = require('./scraper/compat_query.js');
-// const { DB_PATH } = require('./db/db_config.js'); // not used directly here
-// const { getTableData } = require('./db/db_utils.js'); // not used
 const { runWithProgress } = require('./scraper/node_scraper');
 const dataEntry = require('./db/data_entry_point.js');
 const vehicleScraper = require('./scraper/vehicle_scraper');
@@ -74,13 +70,14 @@ ipcMain.handle('get-table-data', async () => {
 
 // Database wipe handler
 ipcMain.handle('wipe-db', async () => {
-  return await vehicleScraper.wipeDatabase();
+  const result = await dataEntry.wipeDatabase();
+  return result;
 });
 
 // Part query handler
 ipcMain.handle('query-part', async (event, partNumber) => {
   try {
-    const result = await queryVehiclesForPart(partNumber);
+    const result = await dataEntry.queryVehiclesForPart(partNumber);
     return result;
   } catch (err) {
     return { error: err.message };

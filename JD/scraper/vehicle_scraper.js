@@ -242,13 +242,6 @@ class ParallelScraper {
 let isScraping = false;
 
 module.exports = {
-  wipeDatabase: async function () {
-    if (isScraping) return { success: false, message: "Scrape in progress." };
-    if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
-    await initDb();
-    return { success: true, message: 'Database wiped and reinitialized' };
-  },
-
   runWithProgress: async function (progressCallback = () => {}, onForceRefresh = () => {}, inputFilePath = null) {
     if (isScraping) return { message: "Scraping is already in progress." };
     isScraping = true;

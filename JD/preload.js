@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Database initialization & management
   initDb:           () => ipcRenderer.invoke('init-db'),
-  wipeDb:           () => ipcRenderer.invoke('wipe-db'),
+  resetDatabase:           () => ipcRenderer.invoke('wipe-db'),
   refreshDatabase:  () => ipcRenderer.invoke('refresh-database'),
 
   // Excel file import & scraping
