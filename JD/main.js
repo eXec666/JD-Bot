@@ -15,6 +15,7 @@ const { getTableData } = require('./db/db_utils.js');
 const { runWithProgress } = require('./scraper/node_scraper');
 const dataEntry = require('./db/data_entry_point.js');
 const vehicleScraper = require('./scraper/vehicle_scraper');
+const { data } = require('node-persist');
 
 
 // Log forwarding logic
@@ -70,10 +71,10 @@ ipcMain.handle('refresh-database', async () => {
 // Add this with your other IPC handlers in main.js
 ipcMain.handle('get-table-data', async () => {
     try {
-        const tables = dbManager.getTables();
+        const tables = dataEntry.getTables();
         const data = {};
         for (const table of tables) {
-            data[table.name] = dbManager.getTableData(table.name);
+            data[table.name] = dataEntry.getTableData(table.name);
         }
         return { success: true, data };
     } catch (error) {
@@ -190,7 +191,7 @@ ipcMain.handle('scrape-nodes', async (event) => {
     
     // Verify database connection
     try {
-      const testQuery = await dbManager.query('SELECT 1 as test');
+      const testQuery = await dataEntry.query('SELECT 1 as test');
       console.log('Database connection test:', testQuery);
     } catch (dbErr) {
       console.error('Database connection failed:', dbErr);
