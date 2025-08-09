@@ -10,6 +10,7 @@ const fs = require('fs');
 const { runWithProgress } = require('./scraper/node_scraper');
 const dataEntry = require('./db/data_entry_point.js');
 const vehicleScraper = require('./scraper/vehicle_scraper');
+const { data } = require('node-persist');
 
 // Log forwarding logic
 function broadcastLog(level, ...args) {
@@ -171,6 +172,7 @@ ipcMain.handle('scrape-nodes', async () => {
     // Verify database connection via unified entry point
     try {
       const testQuery = dataEntry.query(`SELECT 1 AS test`);
+
       console.log('Database connection test:', testQuery);
     } catch (dbErr) {
       console.error('Database connection failed:', dbErr);
