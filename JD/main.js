@@ -13,7 +13,7 @@ const { DB_PATH } = require('./db/db_config.js');
 const { wipeDatabase } = require('./scraper/vehicle_scraper.js');
 const { getTableData } = require('./db/db_utils.js');
 const { runWithProgress } = require('./scraper/node_scraper');
-const dbManager = require('./db/db_manager');
+const dataEntry = require('./db/data_entry_point.js');
 const vehicleScraper = require('./scraper/vehicle_scraper');
 
 
@@ -42,11 +42,21 @@ function createWindow() {
     }
   });
 
-  if (process.env.NODE_ENV === 'development') {
-    win.webContents.openDevTools();
-  }
+  // NEW: listen for dump progress from the unified DB entry point
+  // dataEntry comes from: const dataEntry = require('./db/data_entry_point.js');
+  dataEntry.onDumpProgress((payload) => {
+    // DEBUG: confirm main receives and forwards events
+    console.log('[MAIN] forwarding ui:db-dump-progress', payload);
 
-  win.loadFile('./renderer/index.html');
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('ui:db-dump-progress', payload);
+    }
+});
+
+
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // Open the DevTools if you want debugging
+   //win.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
@@ -140,14 +150,14 @@ ipcMain.handle('scrape-vehicles', async (event, inputFilePath) => {
       inputFilePath
     );
 
-    console.log('✅ Vehicle scrape completed:', result);
+    console.log(' Vehicle scrape completed:', result);
     if (win && !win.isDestroyed()) {
       win.webContents.send('scrape-complete', result);
     }
 
     return result;
   } catch (err) {
-    console.error('❌ Vehicle scrape failed:', err);
+    console.error(' Vehicle scrape failed:', err);
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
       windows[0].webContents.send('scrape-error', {
@@ -214,7 +224,7 @@ ipcMain.handle('scrape-nodes', async (event) => {
 
     return result;
   } catch (err) {
-    console.error('❌ Scrape failed:', err);
+    console.error(' Scrape failed:', err);
     
     // Try to send error to renderer if window exists
     const windows = BrowserWindow.getAllWindows();

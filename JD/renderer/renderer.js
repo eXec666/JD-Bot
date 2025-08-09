@@ -1,5 +1,6 @@
 // renderer.js
 document.addEventListener('DOMContentLoaded', () => {
+
   // --- Tabs & panels ---
   const topTabs = document.querySelectorAll('#topTabs button');
   const panels = {
@@ -27,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const partInput         = document.getElementById('partNumberInput');
   const queryPartBtn      = document.getElementById('queryPartBtn');
   const selectFileBtn     = document.getElementById('selectFileBtn');
-  const startTechniqueBtn = document.getElementById('startTechniqueBtn');
+  const startTechniqueBtn = document.getElementById('startTechniqueBtn'); //rename to startVehicleBtn
   const startNodesBtn     = document.getElementById('startNodesBtn');
   const filePathDisplay   = document.getElementById('filePathDisplay');
   const progressBar       = document.querySelector('#progressBar > div');
@@ -41,8 +42,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const logsWindow   = document.getElementById('logsWindow');
   const scrollDownBtn = document.getElementById('scrollDownBtn');
 
+  // DB progress elements
+  const dbSection = document.getElementById('db-dump-section');
+  const dbBar = document.getElementById('db-progress-bar');
+  const dbLabel = document.getElementById('db-progress-label');
+  const dbMeta = document.getElementById('db-progress-meta');
 
-  // --- State ---
+  // State variables
+  let debounceTimer;
   let selectedFilePath = null;
   let autoScroll       = true;
 
@@ -90,23 +97,84 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     modal.appendChild(content);
     document.body.appendChild(modal);
-    content.querySelector('.modal-close-btn')
-           .addEventListener('click', () => {
+
+    // Close button handler
+    content.querySelector('.modal-close-btn').addEventListener('click', () => {
       document.body.removeChild(modal);
       if (closeCallback) closeCallback();
     });
+
     return modal;
   }
 
-  // --- Compatibility Query ---
-  queryPartBtn.addEventListener('click', performSearch);
+  // ======================
+  // Search Functionality
+  // ======================
+  if (partInput) {
+    partInput.addEventListener('focus', function () {
+      this.select();
+      if (searchResults) searchResults.style.display = 'none';
+    });
+
+    partInput.addEventListener('input', function (e) {
+      clearTimeout(debounceTimer);
+      const query = e.target.value.trim();
+
+      if (!searchResults) return;
+
+      if (query.length < 3) {
+        searchResults.style.display = 'none';
+        return;
+      }
+
+      debounceTimer = setTimeout(async () => {
+        try {
+          const result = await window.electronAPI.queryPartSuggestions(query);
+          displayResults(result.suggestions);
+        } catch (error) {
+          console.error('Search error:', error);
+          searchResults.style.display = 'none';
+        }
+      }, 300);
+    });
+
+    partInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        if (searchResults) searchResults.style.display = 'none';
+        performSearch();
+      }
+    });
+  }
+
+  function displayResults(suggestions) {
+    if (!searchResults) return;
+    searchResults.innerHTML = '';
+    if (suggestions.length > 0) {
+      suggestions.forEach(suggestion => {
+        const div = document.createElement('div');
+        div.className = 'search-item';
+        div.textContent = suggestion;
+        div.addEventListener('click', () => {
+          partInput.value = suggestion;
+          searchResults.style.display = 'none';
+          performSearch();
+        });
+        searchResults.appendChild(div);
+      });
+      searchResults.style.display = 'block';
+    } else {
+      searchResults.style.display = 'none';
+    }
+  }
 
   async function performSearch() {
     const partNumber = partInput.value.trim();
     if (!partNumber) return;
+
     try {
       const result = await window.electronAPI.queryPart(partNumber);
       if (result.error) throw new Error(result.error);
+
       showResultsModal(partNumber, result);
     } catch (error) {
       console.error('Search failed:', error);
@@ -130,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `,
       () => partInput.focus()
     );
+    // Add click handlers for vehicle items
     document.querySelectorAll('.vehicle-item').forEach(item => {
       item.addEventListener('click', e => {
         showNodeDetails(
@@ -141,19 +210,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function showNodeDetails(partNumber, vehicleId) {
-    const loading = createModal('Loading Node Details', '<div class="loader"></div>');
+    const loadingModal = createModal(
+      'Loading Node Details',
+      '<div class="loader"></div>'
+    );
+
     try {
       const result = await window.electronAPI.getNodeDetails(partNumber, vehicleId);
-      document.body.removeChild(loading);
+      document.body.removeChild(loadingModal);
+
       if (result.error) throw new Error(result.error);
-      createModal(
+        createModal(
         'Node Details',
         `
           <p><strong>Part:</strong> ${partNumber}</p>
           <p><strong>Vehicle:</strong> ${result.vehicleName}</p>
           <div class="node-list">
-            ${result.nodes.length
-              ? result.nodes.map(n => `<div class="node-item">${n}</div>`).join('')
+            ${result.nodes.length > 0
+              ? result.nodes.map(node => `<div class="node-item">${node}</div>`).join('')
               : '<p>No nodes found</p>'}
           </div>
         `
@@ -199,6 +273,10 @@ document.addEventListener('DOMContentLoaded', () => {
       startTechniqueBtn.textContent = 'Запустить технику';
     }
   });
+  
+   if (queryPartBtn) {
+    queryPartBtn.addEventListener('click', performSearch);
+  }
 
   startNodesBtn.addEventListener('click', async () => {
     startNodesBtn.disabled = true;
@@ -214,8 +292,49 @@ document.addEventListener('DOMContentLoaded', () => {
       startNodesBtn.textContent = 'Запустить узлы';
     }
   });
+  
+    // Listen for DB dump progress and update the second bar
+  if (window.electronAPI?.onDbDumpProgress && dbSection && dbBar && dbLabel && dbMeta) {
+    const unsubscribeDb = window.electronAPI.onDbDumpProgress(({ table, done, total, percent }) => {
+      if (dbSection.style.display === 'none') dbSection.style.display = 'block';
+      const p = Math.max(0, Math.min(100, Number(percent) || 0));
+      dbBar.style.width = `${p}%`;
+      dbLabel.textContent = `${p}%`;
+      dbMeta.textContent = `${done} / ${total} rows • ${table}`;
+    });
+    window.addEventListener('beforeunload', () => unsubscribeDb && unsubscribeDb());
+  }
 
   // --- DB Tab Buttons ---
+  function displayTableData(data) {
+    createModal(
+      'Database Table Data',
+      `
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Part Number</th>
+                <th>Equipment Ref ID</th>
+                <th>Node Path</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map(row => `
+                <tr>
+                  <td>${row.partNumber || 'N/A'}</td>
+                  <td>${row.equipmentRefId || 'N/A'}</td>
+                  <td>${row.nodePath || 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p class="table-meta">Showing ${data.length} records</p>
+      `
+    );
+  }
+  
   wipeDbBtn.addEventListener('click', async () => {
     if (confirm('Are you sure you want to wipe the database?')) {
       try {
@@ -227,26 +346,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+  
+  if (openDbBtn) {
+    openDbBtn.addEventListener('click', () => {
+      window.electronAPI.openDbViewer();
+    });
+  }
 
-  openDbBtn.addEventListener('click', () => {
-    window.electronAPI.openDatabase();
-  });
+  if (downloadCsvBtn) {
+    downloadCsvBtn.addEventListener('click', async () => {
+      downloadCsvBtn.disabled = true;
+      downloadCsvBtn.textContent = 'Generating CSV...';
 
-  downloadCsvBtn.addEventListener('click', async () => {
-    downloadCsvBtn.disabled = true;
-    downloadCsvBtn.textContent = 'CSV...';
-    try {
-      const res = await window.electronAPI.exportDatabaseCsv();
-      if (res.error) throw new Error(res.error);
-      showNotification(res.message || 'CSV saved');
-      window.electronAPI.openFolder(res.directory);
-    } catch (err) {
-      showNotification(`Error: ${err.message}`, true);
-    } finally {
-      downloadCsvBtn.disabled = false;
-      downloadCsvBtn.textContent = 'CSV';
-    }
-  });
+      try {
+        const result = await window.electronAPI.downloadCsv();
+        if (result.error) throw new Error(result.error);
+
+        showNotification(result.message || `CSV files saved to: ${result.directory}`);
+        window.electronAPI.openFolder(result.directory);
+      } catch (error) {
+        showNotification(`Error: ${error.message}`, true);
+      } finally {
+        downloadCsvBtn.disabled = false;
+        downloadCsvBtn.textContent = 'Download CSV';
+      }
+    });
+  }
 
   // --- Progress Updates ---
   window.electronAPI.onProgress(( percent, message ) => {

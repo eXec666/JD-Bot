@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+
   // Database initialization & management
   initDb:           () => ipcRenderer.invoke('init-db'),
   wipeDb:           () => ipcRenderer.invoke('wipe-db'),
@@ -42,5 +43,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   onForceRefresh: (callback) => {
     ipcRenderer.on('force-refresh', callback);
+  },
+    
+  onDbDumpProgress: (callback) => {
+        const listener = (_event, payload) => callback(payload);
+        ipcRenderer.on('ui:db-dump-progress', listener);
+        // return unsubscribe so you can clean up if needed
+        return () => ipcRenderer.removeListener('ui:db-dump-progress', listener);
   }
 });
