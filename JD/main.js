@@ -3,6 +3,8 @@ console.log('MAIN PROCESS STARTED');
 debugger;
 process.env.DEBUG = '0';
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const originalLog = console.log;
+const originalErr = console.error;
 const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('better-sqlite3');
@@ -14,6 +16,17 @@ const { runWithProgress } = require('./scraper/node_scraper');
 const dataEntry = require('./db/data_entry_point.js');
 const vehicleScraper = require('./scraper/vehicle_scraper');
 
+
+// Log forwarding logic
+function broadcastLog(level, ...args) {
+  originalLog.apply(console, args);
+  const msg = args.map(a => String(a)).join(' ');
+  BrowserWindow.getAllWindows().forEach(win => {
+    if (!win.isDestroyed()) win.webContents.send('log-message', { level, msg, ts: new Date().toISOString() });
+  });
+}
+console.log = (...args) => broadcastLog('log', ...args);
+console.error = (...args) => broadcastLog('error', ...args);
 
 
 // Create the main application window
@@ -228,11 +241,6 @@ ipcMain.handle('scrape-nodes', async (event) => {
     };
   }
 });
-
-
-
-
-
 // Query node details handler
 ipcMain.handle('get-node-details', async (_, partNumber, vehicleId) => {
     try {

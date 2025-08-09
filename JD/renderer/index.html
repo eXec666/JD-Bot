@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <title>G&G БОТ</title>
@@ -8,50 +8,77 @@
       font-family: "Segoe UI", sans-serif;
       background-color: #f4f4f7;
       margin: 0;
-      padding: 30px;
+      padding: 0;
       color: #333;
     }
-
-    h1 {
-      text-align: center;
-      color: #222;
-      margin-bottom: 30px;
-    }
-
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: 0 auto;
-      background: white;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      padding: 20px;
     }
-
+    /* Top tabs */
+    #topTabs {
+      display: flex;
+      border-bottom: 1px solid #ccc;
+      background: #fff;
+    }
+    #topTabs button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      background: #f4f4f7;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s;
+    }
+    #topTabs button.active {
+      background: #fff;
+      border-bottom: 2px solid #007bff;
+      font-weight: bold;
+    }
+    #topTabs button:hover:not(.active) {
+      background: #eaeaea;
+    }
+    /* Panels */
+    .tab-content {
+      display: none;
+      background: #fff;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-top: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    /* Main menu styles */
     .input-group {
       display: flex;
       gap: 10px;
       margin-bottom: 20px;
     }
-
-    input[type="text"] {
+    .input-group input {
       flex: 1;
-      padding: 12px;
+      padding: 10px;
       border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 16px;
+      border-radius: 4px;
+      font-size: 15px;
     }
-
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
     button {
       background-color: #007bff;
       color: white;
       border: none;
-      padding: 12px 20px;
+      padding: 10px 16px;
       font-size: 15px;
-      border-radius: 6px;
+      border-radius: 4px;
       cursor: pointer;
       transition: background-color 0.2s ease;
     }
-
     button:hover {
       background-color: #0056b3;
     }
@@ -69,7 +96,7 @@
       background: #e0e0e0;
       border-radius: 5px;
       overflow: hidden;
-      margin-bottom: 20px;
+      margin-top: 10px;
     }
     #progressBar div {
       height: 100%;
@@ -80,70 +107,34 @@
       font-weight: bold;
       transition: width 0.4s ease;
     }
-
-    .file-control {
-      margin-bottom: 10px;
-    }
-
-    #filePathDisplay {
-      display: block;
-      margin-top: 5px;
-      font-size: 14px;
-      color: #555;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0,0,0,0.5);
+    /* DB controls */
+    .db-controls {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 999;
+      gap: 10px;
+      margin-bottom: 15px;
     }
-
-    .modal-content {
-      background: white;
-      padding: 25px;
-      border-radius: 8px;
-      max-width: 90%;
-      max-height: 85vh;
+    /* Logs */
+    #logsWindow {
+      height: 300px;
       overflow-y: auto;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      background: #f9f9f9;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #333;
+      position: relative;
     }
-
-    .vehicle-list, .node-list {
-      max-height: 300px;
-      overflow-y: auto;
+    #scrollDownBtn {
       margin-top: 10px;
     }
-
-    .vehicle-item, .node-item {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-      cursor: pointer;
+    #saveLogsBtn {
+      margin-top: 10px;
+      background-color: #28a745;
     }
-
-    .vehicle-item:hover, .node-item:hover {
-      background-color: #f1f1f1;
-    }
-
-    .loader {
-      border: 5px solid #eee;
-      border-top: 5px solid #007bff;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    #saveLogsBtn:hover {
+      background-color: #218838;
     }
 
     /* DB dump progress bar styles */
@@ -166,42 +157,61 @@
 </head>
 <body>
   <div class="container">
-    <h1>G&G БОТ</h1>
+    <nav id="topTabs">
+      <button data-tab="main" class="active">Главное меню</button>
+      <button data-tab="db">База данных</button>
+      <button data-tab="logs">Логи</button>
+    </nav>
 
-    <div class="input-group">
-      <input type="text" id="partNumberInput" placeholder="Введите артикул">
-      <button id="queryPartBtn">Проверить</button>
-    </div>
-
-    <div class="btn-group">
-      <button id="selectFileBtn">Выбрать Excel Файл</button>
-      <button id="startScraperBtn" disabled>Запустить</button>
-      <button id="scrapeNodesBtn">Узлы</button>
-      <button id="wipeDbBtn">Сбросить БД</button>
-      <button id="openDbBtn">Открыть БД</button>
-      <button id="downloadCsvBtn">CSV</button>
-    </div>
-
-    <div class="file-control">
-      <span id="filePathDisplay">Файл не выбран</span>
-    </div>
-
-    <!-- Original scraping progress bar -->
-    <div id="progressBar"><div></div></div>
-
-    <!-- New: DB dump progress (just below the original bar) -->
-    <section id="db-dump-section">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <strong>Database write progress</strong>
-        <span id="db-progress-label">0%</span>
+    <!-- Главное меню -->
+    <section id="main" class="tab-content active">
+      <h2>Главное меню</h2>
+      <div class="input-group">
+        <input type="text" id="partNumberInput" placeholder="Введите артикул">
+        <button id="queryPartBtn">Проверить</button>
       </div>
-      <div id="db-progress-track">
-        <div id="db-progress-bar"></div>
+      <div class="btn-group">
+        <button id="selectFileBtn">Выбрать Excel файл</button>
+        <button id="startTechniqueBtn" disabled>Запустить технику</button>
+        <button id="startNodesBtn">Запустить узлы</button>
       </div>
-      <small id="db-progress-meta">0 / 0 rows</small>
+      <div id="filePathDisplay">Файл не выбран</div>
+      <div id="progressBar"><div></div></div>
+      <!-- New: DB dump progress (just below the original bar) -->
+      <section id="db-dump-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <strong>Database write progress</strong>
+          <span id="db-progress-label">0%</span>
+        </div>
+        <div id="db-progress-track">
+          <div id="db-progress-bar"></div>
+        </div>
+        <small id="db-progress-meta">0 / 0 rows</small>
+      </section>
+    </section>
+
+    <!-- База данных -->
+    <section id="db" class="tab-content">
+      <h2>База данных</h2>
+      <div class="db-controls">
+        <button id="wipeDbBtn">Сбросить БД</button>
+        <button id="openDbBtn">Открыть БД</button>
+        <button id="downloadCsvBtn">CSV</button>
+      </div>
+      <div id="dbViewer">
+        <!-- Содержимое прежнего dbViewer.html будет загружено сюда -->
+      </div>
+    </section>
+
+    <!-- Логи -->
+    <section id="logs" class="tab-content">
+      <h2>Логи</h2>
+      <div id="logsWindow"></div>
+      <button id="scrollDownBtn">Вниз</button>
     </section>
   </div>
 
+  <script src="dbViewerRenderer.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

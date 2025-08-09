@@ -1,14 +1,46 @@
+// renderer.js
 document.addEventListener('DOMContentLoaded', () => {
-  // DOM Elements
-  const partInput = document.getElementById('partNumberInput');
-  const searchResults = document.getElementById('searchResults'); // if not present, we guard below
-  const queryPartBtn = document.getElementById('queryPartBtn');
-  const startScraperBtn = document.getElementById('startScraperBtn');
-  const wipeDbBtn = document.getElementById('wipeDbBtn');
-  const selectFileBtn = document.getElementById('selectFileBtn');
+
+  // --- Tabs & panels ---
+  const topTabs = document.querySelectorAll('#topTabs button');
+  const panels = {
+    main: document.getElementById('main'),
+    db:   document.getElementById('db'),
+    logs: document.getElementById('logs'),
+  };
+
+  topTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Activate tab button
+      topTabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Show corresponding panel
+      Object.values(panels).forEach(p => p.classList.remove('active'));
+      const tab = btn.dataset.tab;
+      panels[tab].classList.add('active');
+      // If opening DB tab, init its renderer
+      if (tab === 'db') window.dbViewerRenderer.init();
+    });
+  });
+
+  // --- DOM Elements ---
+  // Main
+  const partInput         = document.getElementById('partNumberInput');
+  const queryPartBtn      = document.getElementById('queryPartBtn');
+  const selectFileBtn     = document.getElementById('selectFileBtn');
+  const startTechniqueBtn = document.getElementById('startTechniqueBtn'); //rename to startVehicleBtn
+  const startNodesBtn     = document.getElementById('startNodesBtn');
+  const filePathDisplay   = document.getElementById('filePathDisplay');
+  const progressBar       = document.querySelector('#progressBar > div');
+
+  // DB
+  const wipeDbBtn     = document.getElementById('wipeDbBtn');
+  const openDbBtn     = document.getElementById('openDbBtn');
   const downloadCsvBtn = document.getElementById('downloadCsvBtn');
-  const scrapeNodesBtn = document.getElementById('scrapeNodesBtn');
-  const openDbBtn = document.getElementById('openDbBtn');
+
+  // Logs
+  const logsWindow   = document.getElementById('logsWindow');
+  const scrollDownBtn = document.getElementById('scrollDownBtn');
 
   // DB progress elements
   const dbSection = document.getElementById('db-dump-section');
@@ -19,10 +51,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // State variables
   let debounceTimer;
   let selectedFilePath = null;
+  let autoScroll       = true;
 
-  // ======================
-  // Helper Functions
-  // ======================
+  // --- Logging ---
+  function appendLog({ level, msg, ts }) {
+    const line = document.createElement('div');
+    line.textContent = `[${ts}] ${msg}`;
+    line.style.color = level === 'error' ? 'red' : '#888';
+    logsWindow.appendChild(line);
+    if (autoScroll) logsWindow.scrollTop = logsWindow.scrollHeight;
+  }
+  window.electronAPI.onLog(appendLog);
+
+  logsWindow.addEventListener('scroll', () => {
+    const atBottom = logsWindow.scrollTop + logsWindow.clientHeight 
+                   >= logsWindow.scrollHeight - 5;
+    autoScroll = atBottom;
+    scrollDownBtn.style.display = atBottom ? 'none' : 'block';
+  });
+  scrollDownBtn.addEventListener('click', () => {
+    logsWindow.scrollTop = logsWindow.scrollHeight;
+    autoScroll = true;
+    scrollDownBtn.style.display = 'none';
+  });
+
+
+  // --- Helpers ---
   function showNotification(message, isError = false) {
     const note = document.createElement('div');
     note.className = `notification ${isError ? 'error' : ''}`;
@@ -34,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function createModal(title, contentHTML, closeCallback = null) {
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
-
     const content = document.createElement('div');
     content.className = 'modal-content';
     content.innerHTML = `
@@ -42,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ${contentHTML}
       <button class="modal-close-btn">Close</button>
     `;
-
     modal.appendChild(content);
     document.body.appendChild(modal);
 
@@ -136,31 +188,27 @@ document.addEventListener('DOMContentLoaded', () => {
       `
         <p>Found ${result.totalUnique} compatible vehicles:</p>
         <ul class="vehicle-list">
-          ${result.rows.map(row => `
-            <li class="vehicle-item" 
-                data-vehicle-id="${row.vehicle_id}" 
+          ${result.rows.map(r => `
+            <li class="vehicle-item" data-vehicle-id="${r.vehicle_id}"
                 data-part-number="${partNumber}">
-              ${row.vehicle_name} (${row.cnt} matches)
+              ${r.vehicle_name} (${r.cnt} matches)
             </li>
           `).join('')}
         </ul>
       `,
       () => partInput.focus()
     );
-
     // Add click handlers for vehicle items
     document.querySelectorAll('.vehicle-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        const vehicleId = e.currentTarget.dataset.vehicleId;
-        const partNumber = e.currentTarget.dataset.partNumber;
-        showNodeDetails(partNumber, vehicleId);
+      item.addEventListener('click', e => {
+        showNodeDetails(
+          e.currentTarget.dataset.partNumber,
+          e.currentTarget.dataset.vehicleId
+        );
       });
     });
   }
 
-  // ======================
-  // Node Details
-  // ======================
   async function showNodeDetails(partNumber, vehicleId) {
     const loadingModal = createModal(
       'Loading Node Details',
@@ -172,8 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.removeChild(loadingModal);
 
       if (result.error) throw new Error(result.error);
-
-      createModal(
+        createModal(
         'Node Details',
         `
           <p><strong>Part:</strong> ${partNumber}</p>
@@ -185,13 +232,80 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `
       );
-    } catch (error) {
-      document.body.removeChild(loadingModal);
-      console.error('Failed to get node details:', error);
-      showNotification(`Error: ${error.message}`, true);
+    } catch (err) {
+      document.body.removeChild(loading);
+      console.error(err);
+      showNotification(`Error: ${err.message}`, true);
     }
   }
 
+  // --- File / Scrape Buttons (Главное меню) ---
+  selectFileBtn.addEventListener('click', async () => {
+    try {
+      const fp = await window.electronAPI.selectExcelFile();
+      if (fp) {
+        selectedFilePath = fp;
+        filePathDisplay.textContent = `Selected: ${fp.split('\\').pop()}`;
+        startTechniqueBtn.disabled = false;
+      } else {
+        showNotification('No file selected');
+      }
+    } catch (err) {
+      showNotification(`Error: ${err.message}`, true);
+    }
+  });
+
+  startTechniqueBtn.addEventListener('click', async () => {
+    if (!selectedFilePath) {
+      showNotification('Please select an Excel file first', true);
+      return;
+    }
+    startTechniqueBtn.disabled = true;
+    startTechniqueBtn.textContent = 'Запуск техники...';
+    try {
+      const res = await window.electronAPI.scrapeVehicles(selectedFilePath);
+      if (res.error) throw new Error(res.error);
+      showNotification(res.message || 'Completed!');
+    } catch (err) {
+      showNotification(`Error: ${err.message}`, true);
+    } finally {
+      startTechniqueBtn.disabled = false;
+      startTechniqueBtn.textContent = 'Запустить технику';
+    }
+  });
+  
+   if (queryPartBtn) {
+    queryPartBtn.addEventListener('click', performSearch);
+  }
+
+  startNodesBtn.addEventListener('click', async () => {
+    startNodesBtn.disabled = true;
+    startNodesBtn.textContent = 'Запуск узлов...';
+    try {
+      const res = await window.electronAPI.scrapeNodes();
+      if (res.error) throw new Error(res.error);
+      showNotification(res.message || 'Completed!');
+    } catch (err) {
+      showNotification(`Error: ${err.message}`, true);
+    } finally {
+      startNodesBtn.disabled = false;
+      startNodesBtn.textContent = 'Запустить узлы';
+    }
+  });
+  
+    // Listen for DB dump progress and update the second bar
+  if (window.electronAPI?.onDbDumpProgress && dbSection && dbBar && dbLabel && dbMeta) {
+    const unsubscribeDb = window.electronAPI.onDbDumpProgress(({ table, done, total, percent }) => {
+      if (dbSection.style.display === 'none') dbSection.style.display = 'block';
+      const p = Math.max(0, Math.min(100, Number(percent) || 0));
+      dbBar.style.width = `${p}%`;
+      dbLabel.textContent = `${p}%`;
+      dbMeta.textContent = `${done} / ${total} rows • ${table}`;
+    });
+    window.addEventListener('beforeunload', () => unsubscribeDb && unsubscribeDb());
+  }
+
+  // --- DB Tab Buttons ---
   function displayTableData(data) {
     createModal(
       'Database Table Data',
@@ -220,77 +334,19 @@ document.addEventListener('DOMContentLoaded', () => {
       `
     );
   }
-
-  // ======================
-  // Button Handlers
-  // ======================
-  if (queryPartBtn) {
-    queryPartBtn.addEventListener('click', performSearch);
-  }
-
-  if (startScraperBtn) {
-    startScraperBtn.addEventListener('click', async () => {
-      if (!window.selectedFilePath) {
-        showNotification('Please select an Excel file first', true);
-        return;
-      }
-
-      startScraperBtn.disabled = true;
-      startScraperBtn.textContent = 'Scraping Vehicles...';
-
+  
+  wipeDbBtn.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to wipe the database?')) {
       try {
-        const result = await window.electronAPI.scrapeVehicles(window.selectedFilePath);
-        if (result.error) throw new Error(result.error);
-        showNotification(result.message || 'Vehicle scraping completed!');
+        await window.electronAPI.resetDatabase();
+        showNotification('Database wiped');
+        window.dbViewerRenderer.init();
       } catch (err) {
         showNotification(`Error: ${err.message}`, true);
-      } finally {
-        startScraperBtn.disabled = false;
-        startScraperBtn.textContent = 'Start Scraper';
       }
-    });
-  }
-
-  // Listen for DB dump progress and update the second bar
-  if (window.electronAPI?.onDbDumpProgress && dbSection && dbBar && dbLabel && dbMeta) {
-    const unsubscribeDb = window.electronAPI.onDbDumpProgress(({ table, done, total, percent }) => {
-      if (dbSection.style.display === 'none') dbSection.style.display = 'block';
-      const p = Math.max(0, Math.min(100, Number(percent) || 0));
-      dbBar.style.width = `${p}%`;
-      dbLabel.textContent = `${p}%`;
-      dbMeta.textContent = `${done} / ${total} rows • ${table}`;
-    });
-    window.addEventListener('beforeunload', () => unsubscribeDb && unsubscribeDb());
-  }
-
-  if (wipeDbBtn) {
-    wipeDbBtn.addEventListener('click', () => {
-      if (confirm('Are you sure you want to wipe the database?')) {
-        window.electronAPI.wipeDb()
-          .then(message => showNotification(message))
-          .catch(err => showNotification(`Error: ${err.message}`, true));
-      }
-    });
-  }
-
-  if (selectFileBtn) {
-    selectFileBtn.addEventListener('click', async () => {
-      try {
-        const filePath = await window.electronAPI.selectExcelFile();
-        if (filePath) {
-          document.getElementById('filePathDisplay').textContent =
-            `Selected: ${filePath.split('\\').pop()}`;
-          window.selectedFilePath = filePath;
-          if (startScraperBtn) startScraperBtn.disabled = false;
-        } else {
-          showNotification('No file selected');
-        }
-      } catch (err) {
-        showNotification(`Error selecting file: ${err.message}`);
-      }
-    });
-  }
-
+    }
+  });
+  
   if (openDbBtn) {
     openDbBtn.addEventListener('click', () => {
       window.electronAPI.openDbViewer();
@@ -317,40 +373,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (scrapeNodesBtn) {
-    scrapeNodesBtn.addEventListener('click', async () => {
-      scrapeNodesBtn.disabled = true;
-      scrapeNodesBtn.textContent = 'Scraping Nodes...';
-
-      try {
-        const result = await window.electronAPI.scrapeNodes();
-        if (result.error) throw new Error(result.error);
-        showNotification(result.message || 'Node scraping completed!');
-      } catch (error) {
-        showNotification(`Error: ${error.message}`, true);
-      } finally {
-        scrapeNodesBtn.disabled = false;
-        scrapeNodesBtn.textContent = 'Scrape Nodes';
-      }
-    });
-  }
-
-  // ======================
-  // Primary scrape progress (original bar)
-  // ======================
-  if (window.electronAPI?.onProgress) {
-    window.electronAPI.onProgress((percent, message) => {
-      const progressBar = document.querySelector('#progressBar div');
-      if (progressBar) {
-        progressBar.style.width = `${percent}%`;
-        progressBar.style.backgroundColor = percent === 100 ? '#4CAF50' : '#4285f4';
-        progressBar.textContent = `${percent}%`;
-
-        if (message) {
-          const progressText = document.querySelector('#progressBar p'); // optional text node
-          if (progressText) progressText.textContent = message;
-        }
-      }
-    });
-  }
+  // --- Progress Updates ---
+  window.electronAPI.onProgress(( percent, message ) => {
+    progressBar.style.width = `${percent}%`;
+    progressBar.textContent = `${percent}%`;
+  });
 });
