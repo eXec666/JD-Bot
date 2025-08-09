@@ -2,8 +2,12 @@
 const { EventEmitter } = require('events');
 const Database = require('better-sqlite3');
 const path = require('path');
+const { DB_PATH } = require('./db_config');
+const initDb = require('../scraper/init_db');  
+const fs = require('fs');
 
-const { DB_PATH } = require('./db_config'); // adjust filename if needed
+
+// adjust filename if needed
 let dbInstance = null;
 const bus = new EventEmitter();
 
@@ -30,6 +34,50 @@ function disconnect() {
     }
 }
 
+function query(sql, params = []) {
+  const db = connect();
+  const stmt = db.prepare(sql);
+  return Array.isArray(params) && params.length ? stmt.all(params) : stmt.all();
+}
+
+function queryVehiclesForPart(partNumber) {
+  const db = connect();
+  const sql = `
+    SELECT v.vehicle_id, v.vehicle_name, COUNT(*) AS cnt
+    FROM compatibility c
+    JOIN parts p ON c.part_id = p.part_id
+    JOIN vehicles v ON c.vehicle_id = v.vehicle_id
+    WHERE p.part_number = ?
+    GROUP BY v.vehicle_id
+    ORDER BY cnt DESC;
+  `;
+  const rows = db.prepare(sql).all(partNumber);
+  return { totalUnique: rows.length, rows };
+}
+
+async function wipeDatabase() {
+    try {
+        console.log('[ENTRY] Wiping database...');
+
+        // Remove DB file if it exists
+        if (fs.existsSync(DB_PATH)) {
+            fs.unlinkSync(DB_PATH);
+            console.log(`[ENTRY] Removed existing DB at ${DB_PATH}`);
+        }
+
+        // Reinitialize DB schema
+        await initDb();
+        console.log('[ENTRY] Database wiped and reinitialized.');
+
+        return { success: true, message: 'Database wiped and reinitialized' };
+    } catch (err) {
+        console.error('[ENTRY] wipeDatabase failed:', err);
+        return { success: false, error: err.message };
+    }
+}
+
+
+
 function getPartIdByNumber(partNumber) {
     const db = connect();
     const row = db.prepare('SELECT part_id FROM parts WHERE part_number = ?').get(partNumber);
@@ -40,6 +88,12 @@ function getVehicleIdByRef(refId) {
     const db = connect();
     const row = db.prepare('SELECT vehicle_id FROM vehicles WHERE equipment_ref_id = ?').get(refId);
     return row ? row.vehicle_id : null;
+}
+
+function getNodeIdByDesc(desc) {
+  const db = connect();
+  const row = db.prepare('SELECT node_id FROM nodes WHERE node_desc = ?').get(desc);
+  return row ? row.node_id : null;
 }
 
 /**
@@ -115,7 +169,12 @@ module.exports = {
     connect,
     disconnect,
     dumpToDb,
+    query,
+    wipeDatabase,
     onDumpProgress,
     getPartIdByNumber,
-    getVehicleIdByRef
+    getVehicleIdByRef,
+    getNodeIdByDesc,
+    queryVehiclesForPart
+    
 };

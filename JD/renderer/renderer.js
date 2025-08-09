@@ -336,16 +336,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   wipeDbBtn.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to wipe the database?')) {
-      try {
-        await window.electronAPI.resetDatabase();
-        showNotification('Database wiped');
+  if (confirm('Are you sure you want to wipe the database?')) {
+    try {
+      await window.electronAPI.resetDatabase();
+      showNotification('Database wiped');
+
+      // Refresh DB tab only if the DB tab is active and dbViewerRenderer is available
+      if (typeof window.dbViewerRenderer?.init === 'function') {
         window.dbViewerRenderer.init();
-      } catch (err) {
-        showNotification(`Error: ${err.message}`, true);
       }
+    } catch (err) {
+      showNotification(`Error: ${err.message}`, true);
     }
-  });
+  }
+});
   
   if (openDbBtn) {
     openDbBtn.addEventListener('click', () => {
