@@ -2,8 +2,9 @@
 const { EventEmitter } = require('events');
 const Database = require('better-sqlite3');
 const path = require('path');
+const { DB_PATH } = require('./db_config');
 
-const { DB_PATH } = require('./db_config'); // adjust filename if needed
+// adjust filename if needed
 let dbInstance = null;
 const bus = new EventEmitter();
 
@@ -30,6 +31,13 @@ function disconnect() {
     }
 }
 
+function query(sql, params = []) {
+  const db = connect();
+  const stmt = db.prepare(sql);
+  return Array.isArray(params) && params.length ? stmt.all(params) : stmt.all();
+}
+
+
 function getPartIdByNumber(partNumber) {
     const db = connect();
     const row = db.prepare('SELECT part_id FROM parts WHERE part_number = ?').get(partNumber);
@@ -40,6 +48,12 @@ function getVehicleIdByRef(refId) {
     const db = connect();
     const row = db.prepare('SELECT vehicle_id FROM vehicles WHERE equipment_ref_id = ?').get(refId);
     return row ? row.vehicle_id : null;
+}
+
+function getNodeIdByDesc(desc) {
+  const db = connect();
+  const row = db.prepare('SELECT node_id FROM nodes WHERE node_desc = ?').get(desc);
+  return row ? row.node_id : null;
 }
 
 /**
@@ -117,5 +131,7 @@ module.exports = {
     dumpToDb,
     onDumpProgress,
     getPartIdByNumber,
-    getVehicleIdByRef
+    getVehicleIdByRef,
+    getNodeIdByDesc,
+    query
 };
