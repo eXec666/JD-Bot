@@ -2,7 +2,7 @@
 console.log('MAIN PROCESS STARTED');
 debugger;
 process.env.DEBUG = '0';
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const originalLog = console.log;
 const originalErr = console.error;
 const path = require('path');
@@ -109,6 +109,24 @@ ipcMain.handle('select-excel-file', async () => {
   if (canceled || !filePaths?.length) return null;
   return filePaths[0];  // absolute path
 });
+
+
+//csv export handler
+ipcMain.handle('download-csv', async () => {
+  const result = await dataEntry.generateCsvFiles();
+  return result; 
+});
+
+
+//folder handler
+ipcMain.handle('open-folder', async (_evt, folderPath) => {
+  if (!folderPath) return { success: false, error: 'No folder path provided' };
+  const outcome = await shell.openPath(folderPath);
+  // openPath returns '' on success, or an error string on failure
+  if (outcome) return { success: false, error: outcome };
+  return { success: true };
+});
+
 
 // Vehicle scraper
 ipcMain.handle('scrape-vehicles', async (event, inputFilePath) => {

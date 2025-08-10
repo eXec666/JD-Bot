@@ -24,10 +24,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Database viewer (legacy call—now routed into same window)
   openDbViewer:   () => ipcRenderer.send('open-db-viewer'),
   getTableData:   (table) => ipcRenderer.invoke('get-table-data', table),
-  downloadCsv:    () => ipcRenderer.invoke('download-csv'),
+  downloadCsv: () => ipcRenderer.invoke('download-csv'),
+
 
   // File system helpers
-  openFolder:     (path) => ipcRenderer.invoke('open-folder', path),
+  openFolder: (dirPath) => ipcRenderer.invoke('open-folder', dirPath),
 
   // Progress & logs
   onProgress:     (callback) => {
