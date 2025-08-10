@@ -5,15 +5,17 @@ const path = require('path');
 const { DB_PATH } = require('./db_config');
 const initDb = require('../scraper/init_db');  
 const fs = require('fs');
+const { app } = require('electron');
 
-let activeWriters = 0;         // how many dumpToDb calls are mid-flight
-let writeGateOpen = true;       // allow new writes?
+let activeWriters = 0;         
+let writeGateOpen = true;       
 let isWiping = false; 
 
 // adjust filename if needed
 let dbInstance = null;
 const bus = new EventEmitter();
 
+//helper functions
 function nowIso() { return new Date().toISOString(); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -23,6 +25,16 @@ async function waitForIdle(timeoutMs = 5000) {
     await sleep(50);
   }
   return activeWriters === 0;
+}
+
+const MAX_ROWS_PER_FILE = 5000;
+
+function escapeCsvValue(value) {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  return (str.includes(',') || str.includes('"') || str.includes('\n'))
+    ? `"${str.replace(/"/g, '""')}"`
+    : str;
 }
 
 // Safely delete file with retry for EBUSY/EPERM on Windows
@@ -158,6 +170,104 @@ async function wipeDatabase() {
   }
 }
 
+function generateCsvFiles({ chunkSize = MAX_ROWS_PER_FILE } = {}) {
+  // Open a separate read-only handle to avoid interfering with the singleton
+  const ro = new Database(DB_PATH, { readonly: true });
+  try {
+    // Count rows in node links first
+    const nodeLinks = ro.prepare(`SELECT COUNT(*) AS total FROM part_vehicle_nodes`).get().total;
+
+    let mode = 'nodes'; // default (preferred) mode when node data exists
+    let total = nodeLinks;
+
+    if (!nodeLinks) {
+      // Fallback: export compatibility only (no nodes yet)
+      const compatRows = ro.prepare(`SELECT COUNT(*) AS total FROM compatibility`).get().total;
+      if (!compatRows) {
+        return {
+          success: true,
+          message: 'No data to export (no nodes or compatibility rows present).',
+          directory: null,
+          files: [],
+          fileCount: 0,
+          totalRows: 0
+        };
+      }
+      mode = 'compat';
+      total = compatRows;
+    }
+
+    const downloadsPath = (app && app.getPath) ? app.getPath('downloads') : path.join(process.cwd(), 'exports');
+    const baseDir = path.join(downloadsPath, mode === 'nodes' ? 'compatibility_reports' : 'compatibility_only_reports');
+    if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
+
+    const fileCount = Math.ceil(total / chunkSize);
+    const files = [];
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+    // Prepared statement per mode
+    const stmt = mode === 'nodes'
+      ? ro.prepare(`
+          SELECT 
+            p.part_number AS PartNumber,
+            v.vehicle_name AS Vehicle,
+            n.node_desc AS Node
+          FROM part_vehicle_nodes pvn
+          JOIN parts p    ON pvn.part_id = p.part_id
+          JOIN vehicles v ON pvn.vehicle_id = v.vehicle_id
+          JOIN nodes n    ON pvn.node_id  = n.node_id
+          ORDER BY p.part_number, v.vehicle_name
+          LIMIT ? OFFSET ?
+        `)
+      : ro.prepare(`
+          SELECT 
+            p.part_number AS PartNumber,
+            v.vehicle_name AS Vehicle
+          FROM compatibility c
+          JOIN parts p    ON c.part_id = p.part_id
+          JOIN vehicles v ON c.vehicle_id = v.vehicle_id
+          ORDER BY p.part_number, v.vehicle_name
+          LIMIT ? OFFSET ?
+        `);
+
+    for (let i = 0; i < fileCount; i++) {
+      const offset = i * chunkSize;
+      const rows = stmt.all(chunkSize, offset);
+      if (!rows.length) continue;
+
+      const fileName = `${mode === 'nodes' ? 'compatibility' : 'compatibility_only'}_${timestamp}_part${i + 1}_of${fileCount}.csv`;
+      const filePath = path.join(baseDir, fileName);
+
+      const header = Object.keys(rows[0]).join(',');
+      const csv = [header];
+
+      for (const r of rows) {
+        // write columns in the same order as header
+        csv.push(Object.keys(rows[0]).map(k => escapeCsvValue(r[k])).join(','));
+      }
+
+      fs.writeFileSync(filePath, csv.join('\n'), 'utf8');
+      files.push(filePath);
+    }
+
+    return {
+      success: true,
+      message: mode === 'nodes'
+        ? `Exported ${total} node-mapped rows to ${fileCount} file(s).`
+        : `No node mappings yet — exported ${total} compatibility rows (Part ↔ Vehicle) to ${fileCount} file(s).`,
+      directory: baseDir,
+      fileCount,
+      totalRows: total,
+      files,
+      mode
+    };
+  } catch (error) {
+    console.error('[ENTRY] CSV export failed:', error);
+    return { success: false, error: error.message };
+  } finally {
+    try { ro.close(); } catch {}
+  }
+}
 
 
 function getPartIdByNumber(partNumber) {
@@ -261,6 +371,7 @@ module.exports = {
     getPartIdByNumber,
     getVehicleIdByRef,
     getNodeIdByDesc,
-    queryVehiclesForPart
+    queryVehiclesForPart,
+    generateCsvFiles
     
 };

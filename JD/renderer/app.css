@@ -20,7 +20,7 @@ body { margin: 0; }
   --bg: #f7f8fa;
   --surface: #ffffff;
   --surface-2: #eef2f7;           /* slightly tinted for headers/plates */
-  --text: #1f2937;                /* gray-800 */
+  --text: #a9bcd8;                /* gray-800 */
   --text-muted: #6b7280;          /* gray-500 */
   --border: #d9dee6;              /* soft border */
 
@@ -30,7 +30,7 @@ body { margin: 0; }
   --danger: #dc2626;
 
   /* Header strip (light) — darker than white for logo contrast */
-  --header-bg: #e3e8ef;
+  --header-bg: #333535;
 
   /* Layout */
   --radius: 12px;
