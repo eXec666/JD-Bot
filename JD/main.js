@@ -141,7 +141,7 @@ ipcMain.handle('scrape-vehicles', async (event, inputFilePath) => {
     console.log('🔌 Starting vehicle scraping...');
     const result = await vehicleScraper.runWithProgress(
       (percent, message) => {
-        console.log(`📦 Vehicle Progress: ${percent}% - ${message}`);
+        console.log(`📦 Progress: ${percent}% - ${message}`);
         if (win && !win.isDestroyed()) {
           win.webContents.send('progress-update', percent, message);
         }
