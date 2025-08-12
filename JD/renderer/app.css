@@ -170,8 +170,7 @@ html[data-theme="dark"] .theme-toggle::after {
   font-weight: 600;
 }
 .tabs > button:hover { background: var(--surface-2); }
-.tabs > button.active,
-.tabs > button[aria-selected="true"] {
+.tabs > button.active {
   background: var(--primary-50);
   color: var(--primary-700);
   outline: 1px solid rgba(37, 99, 235, .25);
