@@ -267,7 +267,7 @@ ipcMain.on('open-db-viewer', () => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'db', 'preloadDbViewer.js')
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
