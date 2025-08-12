@@ -21,13 +21,10 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function waitForIdle(timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
-  console.log(`[${nowIso()}] [ENTRY] waitForIdle start: activeWriters=${activeWriters}, timeoutMs=${timeoutMs}`);
   while (activeWriters > 0 && Date.now() < deadline) {
     await sleep(50);
   }
-  const idle = activeWriters === 0;
-  console.log(`[${nowIso()}] [ENTRY] waitForIdle end: idle=${idle}, activeWriters=${activeWriters}`);
-  return idle;
+  return activeWriters === 0;
 }
 
 const MAX_ROWS_PER_FILE = 5000;
@@ -43,27 +40,19 @@ function escapeCsvValue(value) {
 // Safely delete file with retry for EBUSY/EPERM on Windows
 async function retryDelete(filePath, tries = 15, delayMs = 200) {
   const fs = require('fs');
-  console.log(`[${nowIso()}] [ENTRY] retryDelete start: filePath=${filePath}, tries=${tries}, delayMs=${delayMs}`);
   for (let i = 0; i < tries; i++) {
     try {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      console.log(`[${nowIso()}] [ENTRY] retryDelete success: filePath=${filePath}, attempt=${i + 1}`);
       return true;
     } catch (err) {
       if ((err.code === 'EBUSY' || err.code === 'EPERM') && i < tries - 1) {
-        console.warn(`[${nowIso()}] [ENTRY] retryDelete busy: filePath=${filePath}, code=${err.code}, attempt=${i + 1}`);
         await sleep(delayMs);
         continue;
       }
-      if (err.code === 'ENOENT') {
-        console.log(`[${nowIso()}] [ENTRY] retryDelete not found: filePath=${filePath}, treated as success`);
-        return true;
-      }
-      console.error(`[${nowIso()}] [ENTRY] retryDelete error: filePath=${filePath}, attempt=${i + 1}`, err);
+      if (err.code === 'ENOENT') return true;
       throw err;
     }
   }
-  console.warn(`[${nowIso()}] [ENTRY] retryDelete exhausted: filePath=${filePath}`);
   return false;
 }
 
@@ -73,14 +62,11 @@ async function retryDelete(filePath, tries = 15, delayMs = 200) {
  */
 function connect() {
     if (dbInstance && dbInstance.open) {
-        console.log(`[${nowIso()}] [ENTRY] connect: returning existing dbInstance (DB_PATH=${DB_PATH})`);
         return dbInstance;
     }
-    console.log(`[${nowIso()}] [ENTRY] connect: opening new Database (DB_PATH=${DB_PATH})`);
     dbInstance = new Database(DB_PATH);
     dbInstance.pragma('journal_mode = WAL');
     dbInstance.pragma('foreign_keys = ON');
-    console.log(`[${nowIso()}] [ENTRY] connect: Database opened with WAL and foreign_keys ON`);
     return dbInstance;
 }
 
@@ -89,27 +75,19 @@ function connect() {
  */
 function disconnect() {
     if (dbInstance && dbInstance.open) {
-        console.log(`[${nowIso()}] [ENTRY] disconnect: closing Database`);
         dbInstance.close();
         dbInstance = null;
-        console.log(`[${nowIso()}] [ENTRY] disconnect: Database closed`);
-    } else {
-        console.log(`[${nowIso()}] [ENTRY] disconnect: no open Database to close`);
     }
 }
 
 function query(sql, params = []) {
-  console.log(`[${nowIso()}] [ENTRY] query: sql=${typeof sql === 'string' ? sql.slice(0, 200) : '<non-string>'}, paramsLength=${Array.isArray(params) ? params.length : 0}`);
   const db = connect();
   const stmt = db.prepare(sql);
-  const res = Array.isArray(params) && params.length ? stmt.all(params) : stmt.all();
-  console.log(`[${nowIso()}] [ENTRY] query: rows=${Array.isArray(res) ? res.length : 0}`);
-  return res;
+  return Array.isArray(params) && params.length ? stmt.all(params) : stmt.all();
 }
 
 function queryVehiclesForPart(partNumber) {
     let db;
-    console.log(`[${nowIso()}] [ENTRY] queryVehiclesForPart start: partNumber=${partNumber}`);
     try {
         db = new Database(DB_PATH, { readonly: true });
         const sql = `
@@ -123,7 +101,6 @@ function queryVehiclesForPart(partNumber) {
         `;
         const stmt = db.prepare(sql);
         const rows = stmt.all(partNumber);
-        console.log(`[${nowIso()}] [ENTRY] queryVehiclesForPart end: totalUnique=${rows.length}`);
         return { totalUnique: rows.length, rows };
     } catch (err) {
         console.error('[ENTRY] queryVehiclesForPart failed:', err);
@@ -157,7 +134,6 @@ async function wipeDatabase() {
       }
       // Move WAL contents into main DB and truncate WAL
       dbInstance.pragma('wal_checkpoint(TRUNCATE)');
-      console.log(`[${nowIso()}] [ENTRY] wipeDatabase: wal_checkpoint(TRUNCATE) issued`);
     } catch (e) {
       console.log(`[${nowIso()}] [ENTRY] wal_checkpoint note: ${e.message}`);
     } finally {
@@ -165,7 +141,6 @@ async function wipeDatabase() {
         try { dbInstance.close(); } catch (_) {}
       }
       dbInstance = null;
-      console.log(`[${nowIso()}] [ENTRY] wipeDatabase: temp handle closed`);
     }
 
     // 4) Delete DB + sidecar files with retry (Windows EBUSY/EPERM safe)
@@ -175,7 +150,6 @@ async function wipeDatabase() {
     const okMain = await retryDelete(DB_PATH);
     const okWal  = await retryDelete(wal);
     const okShm  = await retryDelete(shm);
-    console.log(`[${nowIso()}] [ENTRY] wipeDatabase: delete results main=${okMain}, wal=${okWal}, shm=${okShm}`);
 
     if (!okMain) {
       throw new Error(`Could not delete DB file after retries: ${DB_PATH}`);
@@ -193,18 +167,15 @@ async function wipeDatabase() {
     // 6) Reopen the gate for future writes
     writeGateOpen = true;
     isWiping = false;
-    console.log(`[${nowIso()}] [ENTRY] wipeDatabase: gate reopened, isWiping reset`);
   }
 }
 
 function generateCsvFiles({ chunkSize = MAX_ROWS_PER_FILE } = {}) {
-  console.log(`[${nowIso()}] [ENTRY] generateCsvFiles start: chunkSize=${chunkSize}`);
   // Open a separate read-only handle to avoid interfering with the singleton
   const ro = new Database(DB_PATH, { readonly: true });
   try {
     // Count rows in node links first
     const nodeLinks = ro.prepare(`SELECT COUNT(*) AS total FROM part_vehicle_nodes`).get().total;
-    console.log(`[${nowIso()}] [ENTRY] generateCsvFiles: nodeLinks=${nodeLinks}`);
 
     let mode = 'nodes'; // default (preferred) mode when node data exists
     let total = nodeLinks;
@@ -212,9 +183,7 @@ function generateCsvFiles({ chunkSize = MAX_ROWS_PER_FILE } = {}) {
     if (!nodeLinks) {
       // Fallback: export compatibility only (no nodes yet)
       const compatRows = ro.prepare(`SELECT COUNT(*) AS total FROM compatibility`).get().total;
-      console.log(`[${nowIso()}] [ENTRY] generateCsvFiles: compatRows=${compatRows}`);
       if (!compatRows) {
-        console.log(`[${nowIso()}] [ENTRY] generateCsvFiles: no data to export`);
         return {
           success: true,
           message: 'No data to export (no nodes or compatibility rows present).',
@@ -235,8 +204,6 @@ function generateCsvFiles({ chunkSize = MAX_ROWS_PER_FILE } = {}) {
     const fileCount = Math.ceil(total / chunkSize);
     const files = [];
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-    console.log(`[${nowIso()}] [ENTRY] generateCsvFiles: mode=${mode}, totalRows=${total}, fileCount=${fileCount}, baseDir=${baseDir}`);
 
     // Prepared statement per mode
     const stmt = mode === 'nodes'
@@ -281,10 +248,8 @@ function generateCsvFiles({ chunkSize = MAX_ROWS_PER_FILE } = {}) {
 
       fs.writeFileSync(filePath, csv.join('\n'), 'utf8');
       files.push(filePath);
-      console.log(`[${nowIso()}] [ENTRY] generateCsvFiles: wrote ${rows.length} rows to ${fileName}`);
     }
 
-    console.log(`[${nowIso()}] [ENTRY] generateCsvFiles end: files=${files.length}`);
     return {
       success: true,
       message: mode === 'nodes'
@@ -306,30 +271,21 @@ function generateCsvFiles({ chunkSize = MAX_ROWS_PER_FILE } = {}) {
 
 
 function getPartIdByNumber(partNumber) {
-    console.log(`[${nowIso()}] [ENTRY] getPartIdByNumber: partNumber=${partNumber}`);
     const db = connect();
     const row = db.prepare('SELECT part_id FROM parts WHERE part_number = ?').get(partNumber);
-    const id = row ? row.part_id : null;
-    console.log(`[${nowIso()}] [ENTRY] getPartIdByNumber: result=${id}`);
-    return id;
+    return row ? row.part_id : null;
 }
 
 function getVehicleIdByRef(refId) {
-    console.log(`[${nowIso()}] [ENTRY] getVehicleIdByRef: refId=${refId}`);
     const db = connect();
     const row = db.prepare('SELECT vehicle_id FROM vehicles WHERE equipment_ref_id = ?').get(refId);
-    const id = row ? row.vehicle_id : null;
-    console.log(`[${nowIso()}] [ENTRY] getVehicleIdByRef: result=${id}`);
-    return id;
+    return row ? row.vehicle_id : null;
 }
 
 function getNodeIdByDesc(desc) {
-  console.log(`[${nowIso()}] [ENTRY] getNodeIdByDesc: desc=${desc}`);
   const db = connect();
   const row = db.prepare('SELECT node_id FROM nodes WHERE node_desc = ?').get(desc);
-  const id = row ? row.node_id : null;
-  console.log(`[${nowIso()}] [ENTRY] getNodeIdByDesc: result=${id}`);
-  return id;
+  return row ? row.node_id : null;
 }
 
 /**
@@ -338,19 +294,14 @@ function getNodeIdByDesc(desc) {
  * @param {Array<Object>} data
  */
 function dumpToDb(tableName, data) {
-  if (!data || data.length === 0) {
-    console.log(`[${nowIso()}] [ENTRY] dumpToDb: no data for table=${tableName}`);
-    return { message: 'No data to dump.' };
-  }
+  if (!data || data.length === 0) return { message: 'No data to dump.' };
   if (!writeGateOpen) {
     console.warn(`[${nowIso()}] [ENTRY] dumpToDb blocked: wipe in progress (table=${tableName})`);
     return { success: false, error: 'DB is being wiped. Try again shortly.' };
   }
 
-  console.log(`[${nowIso()}] [ENTRY] dumpToDb start: table=${tableName}, rows=${data.length}`);
   const db = connect();
   activeWriters++; // track an in-flight writer
-  console.log(`[${nowIso()}] [ENTRY] dumpToDb: activeWriters incremented -> ${activeWriters}`);
 
   let insertStmt;
   switch (tableName) {
@@ -371,7 +322,6 @@ function dumpToDb(tableName, data) {
       break;
     default:
       activeWriters = Math.max(0, activeWriters - 1);
-      console.error(`[${nowIso()}] [ENTRY] dumpToDb: unsupported table ${tableName}`);
       throw new Error(`Unsupported table: ${tableName}`);
   }
 
@@ -395,14 +345,12 @@ function dumpToDb(tableName, data) {
 
   try {
     tx(data);
-    console.log(`[${nowIso()}] [ENTRY] dumpToDb success: table=${tableName}, inserted=${done}, total=${total}`);
     return { success: true, inserted: done, total };
   } catch (err) {
     console.error(`Dump to ${tableName} failed:`, err.message);
     return { error: err.message };
   } finally {
     activeWriters = Math.max(0, activeWriters - 1); // writer finished
-    console.log(`[${nowIso()}] [ENTRY] dumpToDb: activeWriters decremented -> ${activeWriters}`);
   }
 }
 
@@ -410,7 +358,6 @@ function dumpToDb(tableName, data) {
  * Allow listeners to subscribe to dump progress events
  */
 function onDumpProgress(handler) {
-    console.log(`[${nowIso()}] [ENTRY] onDumpProgress: handler registered`);
     bus.on('dump-progress', handler);
 }
 
